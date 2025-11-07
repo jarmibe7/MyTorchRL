@@ -1,56 +1,46 @@
 """
-Neural network architecture for Deep RL
+Activation functions for neural network.
 
-https://medium.com/data-science/lets-code-a-neural-network-in-plain-numpy-ae7e74410795
+Author: Jared Berry
 
 """
 import numpy as np
 
-class Activation():
-    """
-    A base vectorized activation function
-    """
-    def __init__(self):
-        pass
+from module import Module
 
-    def forward(self, Z):
-        pass
-
-    def backward(self, dLdA, Z):
-        pass
-
-    def __call__(self, Z):
-        return self.forward(Z)
-
-class Sigmoid(Activation):
+class Sigmoid(Module):
     """
     Sigmoid activation function
-
-    # TODO: Derive by hand
     """
     def __init__(self):
-        super.__init__()
+        super().__init__()
         pass
 
-    def forward(self, Z):
-        return 1 / (1 + np.exp(-Z))
+    def forward(self, z):
+        # Given z_i, calculate a_i
+        self.a = 1 / (1 + np.exp(-z))
+        return self.a
     
-    def backward(self, dLdA, Z):
-        sig = self.forward(Z)
-        return dLdA*sig*(1 - sig)
+    def backward(self, dz):
+        # Given W_i+1.T @ delta_i+1, calculate delta_i
+        dA = (self.a*(1 - self.a))
+        return dz*dA
     
-class ReLU(Activation):
+class ReLU(Module):
     """
     ReLU activation function
-
-    # TODO: Derive by hand
     """
     def __init__(self):
-        super.__init__()
+        super().__init__()
         pass
 
-    def forward(self, Z):
-        return np.max(0.0, Z)
+    def forward(self, z):
+        # Given z_i, calculate a_i
+        self.a = np.max(0.0, z)
+        return self.a
     
-    def backward(self, dLdA, Z):
-        relu = self.forward()
+    def backward(self, dz):
+        # Given W_i+1.T @ delta_i+1, calculate delta_i
+        delta = dz.copy()
+        delta[self.a <= 0] = 0.0
+        return delta
