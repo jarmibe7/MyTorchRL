@@ -6,7 +6,20 @@ Author: Jared Berry
 import numpy as np
 from my_torch.module import Module
 
-class BCELoss(Module):
+class Loss(Module):
+    """
+    Generic loss function
+    """
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, predicted, actual):
+        pass
+    
+    def backward(self):
+        pass
+
+class BCELoss(Loss):
     """
     Binary Cross-Entropy Loss
     """
@@ -26,7 +39,7 @@ class BCELoss(Module):
         # return (self.predicted - self.actual) / (self.predicted*(1 - self.predicted))
         return self.predicted - self.actual # If final layer is sigmoid derivative is simplified
 
-class MSELoss(Module):
+class MSELoss(Loss):
     """
     Mean Squared Error Loss
     """

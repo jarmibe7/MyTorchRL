@@ -32,8 +32,10 @@ class GridEnv(Env):
         # Reward value
         self.reward = 1.0
 
-        # Action space
+        # Action and state space
+        self.state_dim = 4
         self.action_space = np.array([0, 1, 2, 3])
+        self.action_dim = len(self.action_space)
         self.action_map = {
             0: np.array([self.res, 0]),
             1: np.array([0, self.res]),
@@ -45,7 +47,7 @@ class GridEnv(Env):
         self.fig = None
         self.ax = None
         self.robot_patch = None
-        self.render_mode = 'human'
+        self.render_mode = render_mode
 
     def __init_render__(self):
         if self.fig is None and self.render_mode == 'human':
@@ -110,9 +112,9 @@ class GridEnv(Env):
             plt.ion() 
             plt.show()
 
-    def sample_action(self):
+    def sample_action(self, probs=None):
         # Sample random action from the action space
-        return np.random.choice(self.action_space)
+        return np.random.choice(self.action_space, p=probs)
     
     def out_of_bounds(self, pos):
         # Determine whether a given position is out of bounds
@@ -127,8 +129,10 @@ class GridEnv(Env):
         self.goal = round_to_res(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
         self.pos = round_to_res(self.start.copy(), self.res)
         if self.fig is None: self.__init_render__()
-        
-        return self.pos, {}
+
+        # Add batch dimension to observation
+        obs = np.concatenate([self.start, self.goal])
+        return obs[np.newaxis, ...], {}
 
     def step(self, action_index):
         # Get physical action corresponding to action index
@@ -151,7 +155,8 @@ class GridEnv(Env):
             reward = 0.0
             self.pos = round_to_res(next_state, self.res)
 
-        return self.pos, reward, terminated, truncated, {}
+        obs = np.concatenate([self.start, self.goal])
+        return obs[np.newaxis, ...], reward, terminated, truncated, {}
 
     def render(self):
         if self.render_mode == 'human':

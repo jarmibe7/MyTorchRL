@@ -10,7 +10,7 @@ https://medium.com/data-science/lets-code-a-neural-network-in-plain-numpy-ae7e74
 import numpy as np
 
 from my_torch.module import Module
-from my_torch.activation import Sigmoid, ReLU
+from my_torch.activation import Sigmoid, ReLU, Dummy, Softmax
 
 class Linear(Module):
     """
@@ -30,6 +30,10 @@ class Linear(Module):
             self.activation = Sigmoid()
         elif activation_class == 'relu':
             self.activation = ReLU()
+        elif activation_class == 'softmax':
+            self.activation = Softmax()
+        elif activation_class == 'dummy':
+            self.activation = Dummy()
         else:
             raise NotImplementedError(f'{activation_class} is not a supported activation function!')
 
@@ -46,8 +50,7 @@ class Linear(Module):
 
     def backward(self, dLda):
         # Calculate dLdW_i and dLdb_i
-        dadz = self.activation.backward()
-        delta_i = (dLda)*dadz
+        delta_i = self.activation.backward(dLda)
         dLdW = delta_i.T @ self.x
         dLdb = np.sum(delta_i, axis=0, keepdims=True)
         dLdx = delta_i @ self.W
