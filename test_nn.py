@@ -3,6 +3,7 @@ Script for testing neural network
 """
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 
 from my_torch.ff import FeedForward
 from utils import accuracy_score
@@ -20,6 +21,17 @@ def main():
     dataset = np.loadtxt(filepath, delimiter=',')
     X_train = dataset[:, :-1]
     y_train = dataset[:, -1].reshape(-1, 1)
+
+    # Plot dataset
+    plt.figure(figsize=(6,6))
+    plt.scatter(X_train[y_train[:,0]==0, 0], X_train[y_train[:,0]==0, 1], c='red', label='Class 0', alpha=0.6)
+    plt.scatter(X_train[y_train[:,0]==1, 0], X_train[y_train[:,0]==1, 1], c='blue', label='Class 1', alpha=0.6)
+    plt.xlabel("X1")
+    plt.ylabel("X2")
+    plt.title(filename)
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
     # Create model
     arch = [
