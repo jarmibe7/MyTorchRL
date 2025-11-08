@@ -177,7 +177,7 @@ class A2C():
 
                 # Compute actor loss and update
                 advantage = target - value
-                advantages[int(episode*step_count)] = advantage
+                advantages[int(episode*self.step_limit + step_count)] = advantage
                 advantage = advantage / (np.std(advantage) + 1e-8)
                 actor_loss = self.actor.criterion(action, action_probs, advantage)
                 actor_gradients = self.actor.backward()
