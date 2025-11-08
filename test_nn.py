@@ -15,7 +15,7 @@ def main():
     print("*** STARTING ***\n")
 
     # Load data
-    filename = 'parallel-lines.csv'
+    filename = 'circles.csv'
     filepath = os.path.join(TEST_DATA_PATH, filename)
     dataset = np.loadtxt(filepath, delimiter=',')
     X_train = dataset[:, :-1]
@@ -23,7 +23,9 @@ def main():
 
     # Create model
     arch = [
-        (X_train.shape[1], 8, 'relu'),
+        (X_train.shape[1], 64, 'relu'),
+        (64, 32, 'relu'),
+        (32, 8, 'relu'),
         (8, 1, 'sigmoid')
     ]
     alpha = 1e-3
