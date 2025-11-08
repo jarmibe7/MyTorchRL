@@ -6,6 +6,7 @@ Author: Jared Berry
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import time
 
 from utils import round_to_res
 
@@ -23,7 +24,7 @@ class Env():
         pass
 
 class GridEnv(Env):
-    def __init__(self, bounds, res, obstacles, render_mode='human'):
+    def __init__(self, bounds, res, obstacles, use_shaped=False, render_mode='human'):
         # Environment
         self.bounds = bounds
         self.res = res
@@ -31,6 +32,8 @@ class GridEnv(Env):
 
         # Reward value
         self.reward = 1.0
+        self.punishment = -1.0
+        self.use_shaped = use_shaped
 
         # Action and state space
         self.state_dim = 4
@@ -38,9 +41,9 @@ class GridEnv(Env):
         self.action_dim = len(self.action_space)
         self.action_map = {
             0: np.array([self.res, 0]),
-            1: np.array([0, self.res]),
-            2: np.array([0, -self.res]),
-            3: np.array([-self.res, 0])
+            1: np.array([0, -self.res]),
+            2: np.array([-self.res, 0]),
+            3: np.array([0, self.res])
         }
 
         # Visualization
@@ -90,16 +93,16 @@ class GridEnv(Env):
             self.ax.set_ylim(self.bounds[1])
 
             # Plot start and goal
-            start_rect = patches.Rectangle(
+            self.start_patch = patches.Rectangle(
                 (self.start[0], self.start[1]), self.res, self.res,
                 facecolor='blue', edgecolor='black'
             )
-            self.ax.add_patch(start_rect)
-            goal_rect = patches.Rectangle(
+            self.ax.add_patch(self.start_patch)
+            self.goal_patch = patches.Rectangle(
                 (self.goal[0], self.goal[1]), self.res, self.res,
                 facecolor='green', edgecolor='black'
             )
-            self.ax.add_patch(goal_rect)
+            self.ax.add_patch(self.goal_patch)
 
             # Draw robot
             self.robot_patch = patches.Rectangle(
@@ -125,13 +128,24 @@ class GridEnv(Env):
 
     def reset(self):
         # Initialize starting and goal positions
-        self.start = round_to_res(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
-        self.goal = round_to_res(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
-        self.pos = round_to_res(self.start.copy(), self.res)
-        if self.fig is None: self.__init_render__()
+        initialized = np.zeros((3,))
+        while not initialized.all():
+            self.start = round_to_res(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
+            self.goal = round_to_res(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
+            self.pos = round_to_res(self.start.copy(), self.res)
+            initialized[0] = tuple(self.start) not in self.obstacles    # Don't start on obstacle
+            initialized[1] = tuple(self.goal) not in self.obstacles     # Don't end on obstacle
+            initialized[2] = tuple(self.start) != tuple(self.goal)      # Don't start on goal
+            if self.fig is None:
+                self.__init_render__()
+            else:
+                # Update start and goal positions
+                self.start_patch.set_xy(self.start)
+                self.goal_patch.set_xy(self.goal)
+                self.robot_patch.set_xy(self.pos)
 
         # Add batch dimension to observation
-        obs = np.concatenate([self.start, self.goal])
+        obs = np.concatenate([self.pos, self.goal])
         return obs[np.newaxis, ...], {}
 
     def step(self, action_index):
@@ -145,7 +159,7 @@ class GridEnv(Env):
         # Check for rewards or punishments
         if tuple(next_state) in self.obstacles or self.out_of_bounds(next_state):
             # Hit obstacle or out of bounds
-            reward = -self.reward
+            reward = self.punishment
         elif (next_state == self.goal).all():
             # Found goal
             reward = self.reward
@@ -155,7 +169,10 @@ class GridEnv(Env):
             reward = 0.0
             self.pos = round_to_res(next_state, self.res)
 
-        obs = np.concatenate([self.start, self.goal])
+        # Shaped reward uses inverse distance
+        if self.use_shaped: reward += self.punishment*np.linalg.norm(self.pos - self.goal)
+
+        obs = np.concatenate([self.pos, self.goal])
         return obs[np.newaxis, ...], reward, terminated, truncated, {}
 
     def render(self):

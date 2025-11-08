@@ -4,7 +4,7 @@ A linear layer for a neural network.
 
 Author: Jared Berry
 
-https://medium.com/data-science/lets-code-a-neural-network-in-plain-numpy-ae7e74410795
+Xavier Weight Initialization: https://medium.com/data-science/lets-code-a-neural-network-in-plain-numpy-ae7e74410795
 
 """
 import numpy as np
@@ -16,14 +16,12 @@ class Linear(Module):
     """
     A simple linear layer in a neural network
     """
-    def __init__(self, in_features, out_features, activation_class):
+    def __init__(self, in_features, out_features, activation_class, weight_init='xavier'):
         # Initialize dims and weights
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
-        init_limit = 0.5
-        self.W = np.random.uniform(-init_limit, init_limit, (self.out_features, self.in_features))    # (n_i, n_i-1)
-        self.b = np.random.uniform(-init_limit, init_limit, (1, self.out_features))   # (n_i, 1)
+        self.__init_weights__(weight_init)
 
         # Create activation function
         if activation_class == 'sigmoid':
@@ -36,6 +34,16 @@ class Linear(Module):
             self.activation = Dummy()
         else:
             raise NotImplementedError(f'{activation_class} is not a supported activation function!')
+        
+    def __init_weights__(self, weight_init):
+        if weight_init == 'xavier':
+            init_limit = np.sqrt(6 / (self.in_features + self.out_features))
+            self.W = np.random.uniform(-init_limit, init_limit, (self.out_features, self.in_features))    # (n_i, n_i-1)
+            self.b = np.random.uniform(-init_limit, init_limit, (1, self.out_features))   # (n_i, 1)
+        else:
+            init_limit = 0.5
+            self.W = np.random.uniform(-init_limit, init_limit, (self.out_features, self.in_features))    # (n_i, n_i-1)
+            self.b = np.random.uniform(-init_limit, init_limit, (1, self.out_features))   # (n_i, 1)
 
     def forward(self, x):
         # Dimension check

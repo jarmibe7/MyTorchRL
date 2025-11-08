@@ -43,7 +43,7 @@ def mse(predicted, actual, angle=False):
     """
     if angle: error = np.unwrap(actual - predicted)
     else: error = actual - predicted
-    return np.mean(error**2)
+    return (error**2)
 
 def rmse(predicted, actual, angle=False):
     """

@@ -1,9 +1,9 @@
 """
 Deep Advantage Actor-Critic (A2C) algorithm.
 
-https://medium.com/@dixitaniket76/advantage-actor-critic-a2c-algorithm-explained-and-implemented-in-pytorch-dc3354b60b50
-
-Paper: https://arxiv.org/abs/1602.01783
+A2C Tutorial: https://medium.com/@dixitaniket76/advantage-actor-critic-a2c-algorithm-explained-and-implemented-in-pytorch-dc3354b60b50
+A2C Paper: https://arxiv.org/abs/1602.01783
+Advantage Normalization: https://github.com/openai/baselines/issues/362
 
 Author: Jared Berry
 """
@@ -25,12 +25,12 @@ class A2CActorLoss(Loss):
         self.action = action
         self.action_probs = action_probs
         self.advantage = advantage
-        return -np.log(action_probs[action])*advantage
+        return -np.log(action_probs[:, action] + 1e-8)*advantage
     
     def backward(self):
         # Only calculate gradient for selected action
         dLda = np.zeros_like(self.action_probs)
-        dLda[self.action] = self.advantage / self.action_probs[self.action]
+        dLda[:, self.action] = self.advantage / (self.action_probs[:, self.action] + 1e-8)
         return dLda
 
 class Actor(Module):
@@ -52,6 +52,10 @@ class Actor(Module):
         self.criterion = A2CActorLoss()
 
     def forward(self, x):
+        out = self.ff(x)
+        if np.isnan(out).any():
+            print('\nNaN detected in actor output!\n')
+            out = 0.5*np.ones_like(out)
         return self.ff(x)
     
     def backward(self):
@@ -105,8 +109,8 @@ class A2C():
         self.env = env
 
         # Create actor and critic
-        self.critic = Critic(critic_arch, loss_type=None, alpha=alpha_critic, conv_thresh=conv_thresh)
-        self.actor = Actor(actor_arch, loss_type=None, alpha=alpha_actor, conv_thresh=conv_thresh)
+        self.critic = Critic(critic_arch, alpha=alpha_critic, conv_thresh=conv_thresh)
+        self.actor = Actor(actor_arch, alpha=alpha_actor, conv_thresh=conv_thresh)
 
         # Algorithm params
         self.gamma = gamma
@@ -144,6 +148,7 @@ class A2C():
 
     def train(self):
         # Main A2C training loop
+        advantages = np.zeros((self.episode_limit*self.step_limit))
         for episode in range(self.episode_limit):
             state, _ = self.env.reset()
             done = False
@@ -153,8 +158,8 @@ class A2C():
 
             while not done and step_count < self.step_limit:
                 # Get action probabilities from actor and select action
-                action_probs = self.actor(state)[0]
-                action = self.env.sample_action(probs=action_probs)
+                action_probs = self.actor(state)
+                action = self.env.sample_action(probs=action_probs[0])
 
                 # Take action and receive next action, reward, and dones
                 next_state, reward, terminated, truncated, info = self.env.step(action)
@@ -172,22 +177,24 @@ class A2C():
 
                 # Compute actor loss and update
                 advantage = target - value
+                advantages[int(episode*step_count)] = advantage
+                advantage = advantage / (np.std(advantage) + 1e-8)
                 actor_loss = self.actor.criterion(action, action_probs, advantage)
                 actor_gradients = self.actor.backward()
                 actor_converged = self.actor.optimize()
 
                 # Logging
-                self.logger['critic_loss'] = critic_loss
-                self.logger['critic_max_grad'] = np.max(critic_gradients)
-                self.logger['reward'] = reward
-                self.logger['actor_loss'] = actor_loss
-                self.logger['actor_max_grad'] = np.max(actor_gradients)
-                self.logger['advantage'] = advantage
+                self.logger['critic_loss'].append(critic_loss)
+                self.logger['critic_max_grad'].append(max(grad[0].max() for grad in critic_gradients))
+                self.logger['reward'].append(reward)
+                self.logger['actor_loss'].append(actor_loss)
+                self.logger['actor_max_grad'].append(max(grad[0].max() for grad in actor_gradients))
+                self.logger['advantage'].append(advantage)
 
                 # Update current state and step count
                 state = next_state
+                self.env.render()
                 step_count += 1
 
-            # Display episode results
-            print(f'Episode: {episode}  Actor Los')
+            self.display_episode()
 

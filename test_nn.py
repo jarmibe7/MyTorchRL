@@ -41,7 +41,7 @@ def main():
         (8, 1, 'sigmoid')
     ]
     alpha = 1e-3
-    model = FeedForward(arch, 'bce', alpha, conv_thresh=1e-5)
+    model = FeedForward(arch, 'bce', alpha, conv_thresh=1e-5, weight_init='basic')
     
     # Training loop
     num_epochs = 1000

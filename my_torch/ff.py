@@ -20,7 +20,7 @@ class FeedForward(Module):
         alpha: Learning rate
         conv_thresh: If the maximum gradient magnitude is less than this threshold, optimize will return True.
     """
-    def __init__(self, arch, loss_type, alpha, conv_thresh):
+    def __init__(self, arch, loss_type, alpha, conv_thresh, weight_init='xavier'):
         super().__init__()
         # Get first input size and final output size
         self.input_size = arch[0][0]
@@ -33,7 +33,7 @@ class FeedForward(Module):
         # Create layers
         self.layers = []
         for input_size, output_size, activation in arch:
-            self.layers.append(Linear(input_size, output_size, activation))
+            self.layers.append(Linear(input_size, output_size, activation, weight_init=weight_init))
         
         # Loss function
         if loss_type is None: self.criterion = None

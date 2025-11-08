@@ -15,8 +15,8 @@ class Dummy(Module):
     def forward(self, z):
         return z
 
-    def backward(self):
-        return np.ones_like(self.a)
+    def backward(self, dLda):
+        return dLda
 
 class Sigmoid(Module):
     """
