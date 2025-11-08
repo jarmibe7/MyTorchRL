@@ -9,8 +9,8 @@ https://medium.com/data-science/lets-code-a-neural-network-in-plain-numpy-ae7e74
 """
 import numpy as np
 
-from module import Module
-from activation import Sigmoid, ReLU
+from my_torch.module import Module
+from my_torch.activation import Sigmoid, ReLU
 
 class Linear(Module):
     """
@@ -18,10 +18,12 @@ class Linear(Module):
     """
     def __init__(self, in_features, out_features, activation_class):
         # Initialize dims and weights
+        super().__init__()
         self.in_features = in_features
         self.out_features = out_features
-        self.W = np.random.uniform(-1.0, 1.0, (self.out_features, self.in_features))
-        self.b = np.random.uniform(-1.0, 1.0)
+        init_limit = 0.5
+        self.W = np.random.uniform(-init_limit, init_limit, (self.out_features, self.in_features))    # (n_i, n_i-1)
+        self.b = np.random.uniform(-init_limit, init_limit, (1, self.out_features))   # (n_i, 1)
 
         # Create activation function
         if activation_class == 'sigmoid':
@@ -33,18 +35,21 @@ class Linear(Module):
 
     def forward(self, x):
         # Dimension check
-        assert x.shape[0] == self.W.shape[1], f'Expected dim 0 of x to be {self.W.shape[1]}, received {x.shape[0]}'
+        assert x.shape[1] == self.W.shape[1], f'Expected dim 1 of x to be {self.W.shape[1]}, received {x.shape[1]}'
+        self.x = x
 
         # Given a_i-1, calculate z_i
-        self.z = (self.W @ x) + self.b
+        self.z = (x @ self.W.T) + self.b
         self.a = self.activation(self.z)
 
         return self.a
 
-    def backward(self):
+    def backward(self, dLda):
         # Calculate dLdW_i and dLdb_i
-        delta_i = self.activation.backward()
-        dLdW = delta_i @ self.a.T
-        dLdb = delta_i
+        dadz = self.activation.backward()
+        delta_i = (dLda)*dadz
+        dLdW = delta_i.T @ self.x
+        dLdb = np.sum(delta_i, axis=0, keepdims=True)
+        dLdx = delta_i @ self.W
 
-        return dLdW, dLdb
+        return dLdx, dLdW, dLdb

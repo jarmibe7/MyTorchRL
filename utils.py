@@ -15,6 +15,60 @@ DATA_PATH = os.path.join(__file__, "..\\data")
 METRICS_PATH = os.path.join(__file__, "..\\metrics")
 
 #
+# --- Evaluation ---
+#
+def t_match(traj, num_samples):
+    """
+    Resample a trajectory to have a certain number of samples
+    """
+    old_path_idx = np.linspace(0, 1, traj.shape[0])
+    new_path_idx = np.linspace(0, 1, num_samples)
+
+    traj_resamp = np.column_stack([
+        np.interp(new_path_idx, old_path_idx, traj[:, i]) for i in range(traj.shape[1])
+    ])
+
+    return traj_resamp
+
+def accuracy_score(predicted, actual):
+    """
+    Given two 1D numpy arrays containing two possible classes, compute the accuray
+    """
+    return len(actual[predicted == actual]) / len(actual)
+
+def mse(predicted, actual, angle=False):
+    """
+    Given two 1D numpy arrays of the same length, compute Mean Squared Error
+    between them.
+    """
+    if angle: error = np.unwrap(actual - predicted)
+    else: error = actual - predicted
+    return np.mean(error**2)
+
+def rmse(predicted, actual, angle=False):
+    """
+    Given two 1D numpy arrays of the same length, compute Root Mean Squared Error
+    between them.
+    """
+    if angle: error = np.unwrap(actual - predicted)
+    else: error = np.linalg.norm(actual - predicted)
+    return np.sqrt(error)
+
+def compute_traj_statistics(predicted, actual):
+    """
+    Given a trajectory, compute various statistics about it from a ground truth.
+    """
+    stats = {}
+    stats['rmse_x'] = rmse(predicted[:, 0], actual[:, 0])
+    stats['rmse_y'] = rmse(predicted[:, 1], actual[:, 1])
+    stats['rmse_theta'] = rmse(predicted[:, 2], actual[:, 2])
+    stats['corr_x'] = np.corrcoef(predicted[:, 0], actual[:, 0])[0, 1]
+    stats['corr_y'] = np.corrcoef(predicted[:, 1], actual[:, 1])[0, 1]
+    stats['corr_theta'] = np.corrcoef(predicted[:, 2], actual[:, 2])[0, 1]
+
+    return stats
+
+#
 # --- Grid Representation ---
 #
 def pos_to_grid(pos, res):

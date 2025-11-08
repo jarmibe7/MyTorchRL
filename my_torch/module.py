@@ -20,5 +20,5 @@ class Module():
     def backward(self, dx):
         pass
 
-    def __call__(self, x):
-        return self.forward(x)
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
