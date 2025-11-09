@@ -7,11 +7,17 @@ Advantage Normalization: https://github.com/openai/baselines/issues/362
 
 Author: Jared Berry
 """
+import os
 import numpy as np
+import matplotlib.pyplot as plt
 
 from my_torch.module import Module
 from my_torch.ff import FeedForward
 from my_torch.loss import Loss, MSELoss
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PLOT_PATH = os.path.join(SCRIPT_DIR, "figures")
+PLOT_PATH = os.path.normpath(PLOT_PATH)
 
 class A2CActorLoss(Loss):
     """
@@ -142,8 +148,28 @@ class A2C():
         self.step_limit = step_limit
         self.save_model = save_model
 
-        # Logging
+        # Logging and visualization
         self.__init_logging__()
+        self.__init_plot__()
+        self.plot_freq = 1000
+
+    def __init_plot__(self):
+        # Initalize figure for plotting
+        self.plot_history = {"reward": [], "actor_loss": [], "critic_loss": [], "advantage": []}
+        self.fig, self.axs = plt.subplots(4, 1, figsize=(8, 10))
+        titles = [
+            "Average Episode Reward",
+            "Actor Loss",
+            "Critic Loss",
+            "Advantage"
+        ]
+        for ax, title in zip(self.axs, titles):
+            ax.set_title(title)
+            ax.set_xlabel("Episode")
+            ax.grid(True)
+        plt.ion()
+        plt.tight_layout()
+        plt.show()
 
     def __init_logging__(self):
         # Reset episode statistics logger
@@ -168,17 +194,46 @@ class A2C():
             'dones': [],
         }
 
+    def update_plot(self, avg_critic_loss, avg_reward, avg_actor_loss, avg_advantage):
+        # Update plot history arrays
+        self.plot_history["reward"].append(avg_reward)
+        self.plot_history["actor_loss"].append(avg_actor_loss)
+        self.plot_history["critic_loss"].append(avg_critic_loss)
+        self.plot_history["advantage"].append(avg_advantage)
+
+        # Clear and replot
+        if self.num_rollouts % self.plot_freq == 0:
+            self.axs[0].cla(); self.axs[0].plot(self.plot_history["reward"], label="Reward", color='blue'); self.axs[0].legend(); self.axs[0].grid(True)
+            self.axs[1].cla(); self.axs[1].plot(self.plot_history["actor_loss"], label="Actor Loss", color='orange'); self.axs[1].legend(); self.axs[1].grid(True)
+            self.axs[2].cla(); self.axs[2].plot(self.plot_history["critic_loss"], label="Critic Loss", color='green'); self.axs[2].legend(); self.axs[2].grid(True)
+            self.axs[3].cla(); self.axs[3].plot(self.plot_history["advantage"], label="Advantage", color='red'); self.axs[3].legend(); self.axs[3].grid(True)
+
+            plt.tight_layout()
+            plt.pause(0.001)
+
+    def save_plot(self):
+        # Save training plot
+        filepath = os.path.join(PLOT_PATH, 'a2c_0.png')
+        self.fig.savefig(filepath)
+
     def display_episode(self):
+        # Store running means
+        avg_critic_loss = np.mean(np.array(self.logger["critic_loss"])) if len(self.logger["critic_loss"]) > 0 else 0
+        avg_reward = np.mean(np.array(self.logger["reward"])) if len(self.logger["reward"]) > 0 else 0
+        avg_actor_loss = np.mean(np.array(self.logger["actor_loss"])) if len(self.logger["actor_loss"]) > 0 else 0
+        avg_advantage = np.mean(np.array(self.logger["advantage"])) if len(self.logger["advantage"]) > 0 else 0
+
         # Display episode statistics
         print('\n----------------------------')
         print(f'Episode {self.logger['episode']}:')
-        print(f'Avg. Critic Loss: {np.mean(np.array(self.logger['critic_loss']))}')
+        print(f'Avg. Critic Loss: {avg_critic_loss}')
         print(f'Avg. Max Critic Gradient: {np.mean(np.array(self.logger['critic_max_grad']))}')
-        print(f'Avg. Reward: {np.mean(np.array(self.logger['reward']))}')
-        print(f'Avg. Actor Loss: {np.mean(np.array(self.logger['actor_loss']))}')
+        print(f'Avg. Reward: {avg_reward}')
+        print(f'Avg. Actor Loss: {avg_actor_loss}')
         print(f'Avg. Max Actor Gradient: {np.mean(np.array(self.logger['actor_max_grad']))}')
-        print(f'Avg. Advantage: {np.mean(np.array(self.logger['advantage']))}')
+        print(f'Avg. Advantage: {avg_advantage}')
         print('----------------------------\n')
+        self.update_plot(avg_critic_loss, avg_reward, avg_actor_loss, avg_advantage)
         self.__init_logging__()
         return
     
@@ -272,6 +327,7 @@ class A2C():
             self.logger['advantage'].extend(list(advantage))
             self.display_episode()
         
+        self.save_plot()
         return
 
     def train(self):
@@ -335,4 +391,17 @@ class A2C():
                 step_count += 1
 
             self.display_episode()
+
+    def learn(self, batch=True):
+        try:
+            if batch: self.batch_train()
+            else: self.train()
+        except KeyboardInterrupt:
+            print('\nManual interrupt, saving plot!')
+            self.save_plot()
+        except Exception as e:
+            print(f'\n{e}')
+            self.save_plot()
+
+        return
 

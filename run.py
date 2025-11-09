@@ -5,6 +5,14 @@ Main script for HW2 of ME 469 at Northwestern University.
 
 Author: Jared Berry
 Date: 11/05/2025
+
+Ideas:
+    - Imitation learning with A* trajectories
+    - Remove goal position and see if it can be more efficient than random, learning search rather
+      than goal position.
+    - Use multiple actors, do some swarm stuff
+    - Use double critic network
+    - TODO: Try non-deep version
 """ 
 import numpy as np
 
@@ -26,7 +34,7 @@ def main():
     obstacles = get_obstacles(bounds, res, inflate=0)
 
     # Create and initialize environment
-    env = GridEnv(bounds, res, obstacles=None, use_shaped=True, render_mode='human')
+    env = GridEnv(bounds, res, obstacles=None, use_shaped=True, wrap_arena=True, render_mode='human')
     obs, info = env.reset()
 
     # Initialize model
@@ -74,7 +82,7 @@ def main():
     #     if terminated or truncated:
     #         print('Reached goal')
     #         obs, info = env.reset()
-    model.batch_train()
+    model.learn()
     print("\n*** DONE ***")
     return
 

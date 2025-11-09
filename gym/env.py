@@ -24,18 +24,20 @@ class Env():
         pass
 
 class GridEnv(Env):
-    def __init__(self, bounds, res, obstacles=None, use_shaped=False, render_mode='human'):
+    def __init__(self, bounds, res, obstacles=None, use_shaped=False, wrap_arena=False, render_mode='human'):
         # Environment
         self.bounds = bounds
+        self.max_dist = abs(bounds[0][1] - bounds[0][0]) + abs(bounds[1][1] - bounds[1][0])
         self.res = res
         self.obstacles = obstacles
+        self.wrap_arena = wrap_arena
 
         # Reward value
-        self.reward = 1000.0
+        self.reward = 10.0
         self.punishment = -0.0
         self.use_shaped = use_shaped
-        self.shaped_mult = -0.0
-        self.time_penalty = -0.000
+        self.shaped_mult = 0.1
+        self.time_penalty = -0.01
 
         # Action and state space
         self.state_dim = 4
@@ -154,11 +156,26 @@ class GridEnv(Env):
         # Add batch dimension to observation
         obs = np.concatenate([self.pos, self.goal])
         return obs[np.newaxis, ...], {}
+    
+    def wrap(self, pos):
+        # Wrap x
+        new_pos = pos.copy()
+        if pos[0] < self.bounds[0][0]: new_pos[0] = self.bounds[0][1] - 1
+        elif pos[0] >= self.bounds[0][1]: new_pos[0] = self.bounds[0][0]
+
+        # Wrap y
+        if pos[1] < self.bounds[1][0]: new_pos[1] = self.bounds[1][1] - 1
+        elif pos[1] >= self.bounds[1][1]: new_pos[1] = self.bounds[1][0]
+
+        return new_pos
 
     def step(self, action_index):
         # Get physical action corresponding to action index
         action = self.action_map[action_index]
         next_state = self.pos + action
+
+        # Wrap around arena edges
+        if self.wrap_arena: next_state = self.wrap(next_state)
         
         # Initialize done flags
         terminated, truncated = False, False
@@ -169,6 +186,7 @@ class GridEnv(Env):
         if obs_collision or self.out_of_bounds(next_state):
             # Hit obstacle or out of bounds
             reward += self.punishment
+            truncated = True
         elif (next_state == self.goal).all():
             # Found goal
             reward += self.reward
@@ -178,7 +196,9 @@ class GridEnv(Env):
             self.pos = round_to_res(next_state, self.res)
 
         # Shaped reward uses inverse distance
-        if self.use_shaped: reward += self.shaped_mult*np.linalg.norm(self.pos - self.goal)
+        if self.use_shaped: 
+            dist = np.linalg.norm(self.pos - self.goal)
+            reward += self.shaped_mult*(1 - dist / self.max_dist)
 
         obs = np.concatenate([self.pos, self.goal])
         return obs[np.newaxis, ...], reward, terminated, truncated, {}
