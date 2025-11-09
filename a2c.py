@@ -149,9 +149,10 @@ class A2C():
         self.save_model = save_model
 
         # Logging and visualization
+        self.render = self.env.render_mode == 'human'
+        self.plot_freq = 1000
         self.__init_logging__()
         self.__init_plot__()
-        self.plot_freq = 1000
 
     def __init_plot__(self):
         # Initalize figure for plotting
@@ -167,9 +168,12 @@ class A2C():
             ax.set_title(title)
             ax.set_xlabel("Episode")
             ax.grid(True)
-        plt.ion()
         plt.tight_layout()
-        plt.show()
+        if self.render: 
+            plt.ion()
+            plt.show()
+        else:
+            plt.ioff()
 
     def __init_logging__(self):
         # Reset episode statistics logger
@@ -209,7 +213,7 @@ class A2C():
             self.axs[3].cla(); self.axs[3].plot(self.plot_history["advantage"], label="Advantage", color='red'); self.axs[3].legend(); self.axs[3].grid(True)
 
             plt.tight_layout()
-            plt.pause(0.001)
+            if self.render: plt.pause(0.001)
 
     def save_plot(self):
         # Save training plot
@@ -313,7 +317,7 @@ class A2C():
 
             # Compute actor loss and update
             advantage = target - value
-            # advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + 1e-8) # Normalize the advantage
+            advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + 1e-8) # Normalize the advantage
             actor_loss = self.actor.criterion(actions, action_probs, advantage)
             actor_gradients = self.actor.backward()
             actor_converged = self.actor.optimize()

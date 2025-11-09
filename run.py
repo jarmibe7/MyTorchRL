@@ -12,7 +12,9 @@ Ideas:
       than goal position.
     - Use multiple actors, do some swarm stuff
     - Use double critic network
-    - TODO: Try non-deep version
+    - Try non-deep version
+    - n-step returns in A2C
+    - Don't subtract mean when normalizing advantage
 """ 
 import numpy as np
 
@@ -34,7 +36,7 @@ def main():
     obstacles = get_obstacles(bounds, res, inflate=0)
 
     # Create and initialize environment
-    env = GridEnv(bounds, res, obstacles=None, use_shaped=True, wrap_arena=True, render_mode='human')
+    env = GridEnv(bounds, res, obstacles=None, use_shaped=True, wrap_arena=True, render_mode='no_vis')
     obs, info = env.reset()
 
     # Initialize model
@@ -48,7 +50,7 @@ def main():
         (64, 128, 'relu'),
         (128, env.action_dim, 'softmax')
     ]
-    alpha_actor = 1e-3
+    alpha_actor = 1e-4
     alpha_critic = 1e-4
     gamma = 0.95
     exp_prob = 0.0
