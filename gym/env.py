@@ -31,9 +31,11 @@ class GridEnv(Env):
         self.obstacles = obstacles
 
         # Reward value
-        self.reward = 1.0
-        self.punishment = -1.0
+        self.reward = 1000.0
+        self.punishment = -0.0
         self.use_shaped = use_shaped
+        self.shaped_mult = -0.0
+        self.time_penalty = -0.000
 
         # Action and state space
         self.state_dim = 4
@@ -157,20 +159,20 @@ class GridEnv(Env):
         terminated, truncated = False, False
 
         # Check for rewards or punishments
+        reward = self.time_penalty
         if tuple(next_state) in self.obstacles or self.out_of_bounds(next_state):
             # Hit obstacle or out of bounds
-            reward = self.punishment
+            reward += self.punishment
         elif (next_state == self.goal).all():
             # Found goal
-            reward = self.reward
+            reward += self.reward
             self.pos = round_to_res(next_state, self.res)
             terminated = True
         else:
-            reward = 0.0
             self.pos = round_to_res(next_state, self.res)
 
         # Shaped reward uses inverse distance
-        if self.use_shaped: reward += self.punishment*np.linalg.norm(self.pos - self.goal)
+        if self.use_shaped: reward += self.shaped_mult*np.linalg.norm(self.pos - self.goal)
 
         obs = np.concatenate([self.pos, self.goal])
         return obs[np.newaxis, ...], reward, terminated, truncated, {}

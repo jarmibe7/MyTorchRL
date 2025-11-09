@@ -20,18 +20,19 @@ class A2CActorLoss(Loss):
     def __init__(self):
         super().__init__()
 
-    def forward(self, action, action_probs, advantage):
+    def forward(self, actions, action_probs, advantages):
         # Negative log action probability of selected action * advantage
-        self.action = action
+        self.actions = actions.flatten()
         self.action_probs = action_probs
-        self.advantage = advantage
+        self.advantages = advantages.flatten()
         self.batch_indices = np.arange(action_probs.shape[0])
-        return -np.log(action_probs[self.batch_indices, action] + 1e-8)*advantage
+        self.selected_probs = self.action_probs[self.batch_indices, self.actions]
+        return -np.log(self.selected_probs + 1e-8)*self.advantages
     
     def backward(self):
         # Only calculate gradient for selected action
         dLda = np.zeros_like(self.action_probs)
-        dLda[self.batch_indices, self.action] = self.advantage / (self.action_probs[self.batch_indices, self.action] + 1e-8)
+        dLda[self.batch_indices, self.actions] = self.advantages / (self.selected_probs + 1e-8)
         return dLda
 
 class Actor(Module):
@@ -56,7 +57,7 @@ class Actor(Module):
         out = self.ff(x)
         if np.isnan(out).any():
             print('\nNaN detected in actor output!\n')
-            out = 0.5*np.ones_like(out)
+            out = 0.25*np.ones_like(out)
         return out
     
     def backward(self):
@@ -106,6 +107,7 @@ class A2C():
         alpha_critic: Critic learning rate
         gamma: Discount factor
         exp_prob: Probability of random exploration
+        rollout_limit: Number of episodes to collect in each rollout (batch_size = rollout_limit*step_limit)
         episode_limit: Limit number of episodes for training
         step_limit: Limit number of timesteps per episode
         conv_thresh: Gradient convergence threshold
@@ -119,6 +121,7 @@ class A2C():
                  alpha_critic, 
                  gamma,
                  exp_prob, 
+                 rollout_limit,
                  episode_limit, 
                  step_limit, 
                  conv_thresh, 
@@ -133,6 +136,8 @@ class A2C():
         # Algorithm params
         self.gamma = gamma
         self.exp_prob = exp_prob
+        self.rollout_limit = rollout_limit
+        self.num_rollouts = 0
         self.episode_limit = episode_limit
         self.step_limit = step_limit
         self.save_model = save_model
@@ -152,6 +157,17 @@ class A2C():
             'advantage': [],
         }
 
+    def __init_batch__(self):
+        # Reset batch data structure
+        self.batch = {
+            'states': [],
+            'actions': [],
+            'action_probs': [],
+            'rewards': [],
+            'next_states': [],
+            'dones': [],
+        }
+
     def display_episode(self):
         # Display episode statistics
         print('\n----------------------------')
@@ -163,6 +179,99 @@ class A2C():
         print(f'Avg. Max Actor Gradient: {np.mean(np.array(self.logger['actor_max_grad']))}')
         print(f'Avg. Advantage: {np.mean(np.array(self.logger['advantage']))}')
         print('----------------------------\n')
+        self.__init_logging__()
+        return
+    
+    def collect_rollouts(self):
+        self.__init_batch__()
+        # Collect batch of rollouts
+        for rollout in range(self.rollout_limit):
+            state, _ = self.env.reset()
+            done = False
+            step_count = 0
+            # self.logger['episode'] = episode
+
+            while not done and step_count < self.step_limit:
+                # Take action
+                action_probs = self.actor(state)
+                action = self.env.sample_action(probs=action_probs[0])
+
+                # To explore, take an unlikely action
+                exp_chance = np.random.uniform(0.0, 1.0)
+                if exp_chance < self.exp_prob:
+                    inverse_probs = (1.0 - action_probs)
+                    action_probs = inverse_probs / np.sum(inverse_probs)
+                    action = self.env.sample_action(probs=action_probs[0])
+                
+                next_state, reward, terminated, truncated, info = self.env.step(action)
+                
+                # Save for batch
+                self.batch['states'].append(state)
+                self.batch['actions'].append(action)
+                self.batch['action_probs'].append(action_probs)
+                self.batch['rewards'].append(reward)
+                self.batch['next_states'].append(next_state)
+                self.batch['dones'].append(terminated or truncated)
+
+                state = next_state
+                done = terminated or truncated
+                step_count += 1
+                if self.num_rollouts % 1000 == 0: self.env.render()
+            self.num_rollouts += 1
+
+        # Convert to numpy arrays
+        self.batch['states'] = np.vstack(self.batch['states'])
+        self.batch['actions'] = np.array(self.batch['actions'])[:, np.newaxis]
+        self.batch['action_probs'] = np.vstack(self.batch['action_probs'])
+        self.batch['rewards'] = np.array(self.batch['rewards'])[:, np.newaxis]
+        self.batch['next_states'] = np.vstack(self.batch['next_states'])
+        self.batch['dones'] = np.array(self.batch['dones'])[:, np.newaxis]
+
+        return
+
+    def batch_train(self):
+        # Collect batch of training data
+        for step in range(self.episode_limit):
+            self.collect_rollouts()
+            self.logger['episode'] = step
+
+            # Unpack batched variables
+            states = self.batch['states']
+            actions = self.batch['actions']
+            action_probs = self.batch['action_probs']
+            rewards = self.batch['rewards']
+            next_states = self.batch['next_states']
+            dones = self.batch['dones']
+
+            # Estimate value and next value with critic
+            value = self.critic(states)
+            value = np.clip(value, -10.0, 10.0)
+            next_value = self.critic(next_states)
+            next_value = np.clip(next_value, -10.0, 10.0)
+
+            # Compute critic loss and update
+            # If next state is terminal no need to incorporate future rewards
+            target = rewards + (self.gamma*next_value)*(1 - (dones))
+            critic_loss = self.critic.criterion(value, target)
+            critic_gradients = self.critic.backward()
+            critic_converged = self.critic.optimize()
+
+            # Compute actor loss and update
+            advantage = target - value
+            # advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + 1e-8) # Normalize the advantage
+            actor_loss = self.actor.criterion(actions, action_probs, advantage)
+            actor_gradients = self.actor.backward()
+            actor_converged = self.actor.optimize()
+
+            # Logging
+            self.logger['critic_loss'].append(critic_loss)
+            self.logger['critic_max_grad'].append(max(grad[0].max() for grad in critic_gradients))
+            self.logger['reward'].extend(list(rewards))
+            self.logger['actor_loss'].append(actor_loss)
+            self.logger['actor_max_grad'].append(max(grad[0].max() for grad in actor_gradients))
+            self.logger['advantage'].extend(list(advantage))
+            self.display_episode()
+        
         return
 
     def train(self):
@@ -172,7 +281,6 @@ class A2C():
             state, _ = self.env.reset()
             done = False
             step_count = 0
-            self.__init_logging__()
             self.logger['episode'] = episode
 
             while not done and step_count < self.step_limit:
@@ -192,7 +300,9 @@ class A2C():
 
                 # Estimate value and next value with critic
                 value = self.critic(state)
+                value = np.clip(value, -10.0, 10.0)
                 next_value = self.critic(next_state)
+                next_value = np.clip(next_value, -10.0, 10.0)
 
                 # Compute critic loss and update
                 # If next state is terminal no need to incorporate future rewards
@@ -221,7 +331,7 @@ class A2C():
                 # Update current state and step count
                 state = next_state
                 done = terminated or truncated
-                self.env.render()
+                if episode % 100 == 0: self.env.render()
                 step_count += 1
 
             self.display_episode()

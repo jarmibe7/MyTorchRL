@@ -32,17 +32,20 @@ def main():
     # Initialize model
     critic_arch = [
         (env.state_dim, 64, 'relu'),
-        (64, 1, 'dummy')
+        (64, 128, 'relu'),
+        (128, 1, 'dummy')
     ]
     actor_arch = [
         (env.state_dim, 64, 'relu'),
-        (64, env.action_dim, 'softmax')
+        (64, 128, 'relu'),
+        (128, env.action_dim, 'softmax')
     ]
     alpha_actor = 1e-3
-    alpha_critic = 1e-3
-    gamma = 0.99
-    exp_prob = 0.5
-    episode_limit = 1000
+    alpha_critic = 1e-4
+    gamma = 0.95
+    exp_prob = 0.0
+    rollout_limit = 10
+    episode_limit = 10000
     step_limit = 100
     conv_thresh = 1e-5
     model = A2C(
@@ -53,6 +56,7 @@ def main():
         alpha_critic, 
         gamma,
         exp_prob,
+        rollout_limit,
         episode_limit, 
         step_limit, 
         conv_thresh, 
@@ -70,7 +74,7 @@ def main():
     #     if terminated or truncated:
     #         print('Reached goal')
     #         obs, info = env.reset()
-    model.train()
+    model.batch_train()
     print("\n*** DONE ***")
     return
 
