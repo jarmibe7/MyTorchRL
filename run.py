@@ -41,10 +41,23 @@ def main():
     alpha_actor = 1e-3
     alpha_critic = 1e-3
     gamma = 0.99
+    exp_prob = 0.5
     episode_limit = 1000
     step_limit = 100
     conv_thresh = 1e-5
-    model = A2C(env, critic_arch, actor_arch, alpha_actor, alpha_critic, gamma, episode_limit, step_limit, conv_thresh, save_model=False)
+    model = A2C(
+        env, 
+        critic_arch, 
+        actor_arch, 
+        alpha_actor, 
+        alpha_critic, 
+        gamma,
+        exp_prob,
+        episode_limit, 
+        step_limit, 
+        conv_thresh, 
+        save_model=False
+    )
     
     # Training loop
     # for t in range(100):

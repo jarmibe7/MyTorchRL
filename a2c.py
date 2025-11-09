@@ -56,7 +56,7 @@ class Actor(Module):
         if np.isnan(out).any():
             print('\nNaN detected in actor output!\n')
             out = 0.5*np.ones_like(out)
-        return self.ff(x)
+        return out
     
     def backward(self):
         dLdy = self.criterion.backward()
@@ -101,10 +101,27 @@ class A2C():
         env: Gymnasium environment
         critic_arch: Critic network architecture
         actor_arch: Actor network architecture
-        alpha: Learning rate
+        alpha_actor: Actor learning rate
+        alpha_critic: Critic learning rate
+        gamma: Discount factor
+        exp_prob: Probability of random exploration
+        episode_limit: Limit number of episodes for training
+        step_limit: Limit number of timesteps per episode
         conv_thresh: Gradient convergence threshold
+        save_model: Whether to save model weights
     """
-    def __init__(self, env, critic_arch, actor_arch, alpha_actor, alpha_critic, gamma, episode_limit, step_limit, conv_thresh, save_model):
+    def __init__(self, 
+                 env, 
+                 critic_arch, 
+                 actor_arch, 
+                 alpha_actor, 
+                 alpha_critic, 
+                 gamma,
+                 exp_prob, 
+                 episode_limit, 
+                 step_limit, 
+                 conv_thresh, 
+                 save_model):
         # Assign environment
         self.env = env
 
@@ -114,6 +131,7 @@ class A2C():
 
         # Algorithm params
         self.gamma = gamma
+        self.exp_prob = exp_prob
         self.episode_limit = episode_limit
         self.step_limit = step_limit
         self.save_model = save_model
@@ -161,6 +179,13 @@ class A2C():
                 action_probs = self.actor(state)
                 action = self.env.sample_action(probs=action_probs[0])
 
+                # To explore, take an unlikely action
+                exp_chance = np.random.uniform(0.0, 1.0)
+                if exp_chance < self.exp_prob:
+                    inverse_probs = (1.0 - action_probs)
+                    action_probs = inverse_probs / np.sum(inverse_probs)
+                    action = self.env.sample_action(probs=action_probs[0])
+
                 # Take action and receive next action, reward, and dones
                 next_state, reward, terminated, truncated, info = self.env.step(action)
 
@@ -177,8 +202,9 @@ class A2C():
 
                 # Compute actor loss and update
                 advantage = target - value
-                advantages[int(episode*self.step_limit + step_count)] = advantage
-                advantage = advantage / (np.std(advantage) + 1e-8)
+                advantage = np.clip(advantage, -1.0, 1.0)
+                # advantages[int(episode*self.step_limit + step_count)] = advantage
+                # advantage = advantage / (np.std(advantage) + 1e-8)
                 actor_loss = self.actor.criterion(action, action_probs, advantage)
                 actor_gradients = self.actor.backward()
                 actor_converged = self.actor.optimize()
@@ -193,6 +219,7 @@ class A2C():
 
                 # Update current state and step count
                 state = next_state
+                done = terminated or truncated
                 self.env.render()
                 step_count += 1
 
