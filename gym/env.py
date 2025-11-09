@@ -6,7 +6,6 @@ Author: Jared Berry
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import time
 
 from utils import round_to_res
 

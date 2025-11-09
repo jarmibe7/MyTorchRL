@@ -48,7 +48,6 @@ class Actor(Module):
     Args:
         arch: A list of triplets of length n, where each index i corresponds to a layer
               and arch[i] is a triplet with that layer's input size, output size, and activation function.
-        loss_type: A string specifying what type of loss function to use.
         alpha: Learning rate
         conv_thresh: If the maximum gradient magnitude is less than this threshold, optimization should end.
     """
@@ -80,7 +79,6 @@ class Critic(Module):
     Args:
         arch: A list of triplets of length n, where each index i corresponds to a layer
               and arch[i] is a triplet with that layer's input size, output size, and activation function.
-        loss_type: A string specifying what type of loss function to use.
         alpha: Learning rate
         conv_thresh: If the maximum gradient magnitude is less than this threshold, optimization should end.
     """
