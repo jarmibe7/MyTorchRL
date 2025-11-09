@@ -25,12 +25,13 @@ class A2CActorLoss(Loss):
         self.action = action
         self.action_probs = action_probs
         self.advantage = advantage
-        return -np.log(action_probs[:, action] + 1e-8)*advantage
+        self.batch_indices = np.arange(action_probs.shape[0])
+        return -np.log(action_probs[self.batch_indices, action] + 1e-8)*advantage
     
     def backward(self):
         # Only calculate gradient for selected action
         dLda = np.zeros_like(self.action_probs)
-        dLda[:, self.action] = self.advantage / (self.action_probs[:, self.action] + 1e-8)
+        dLda[self.batch_indices, self.action] = self.advantage / (self.action_probs[self.batch_indices, self.action] + 1e-8)
         return dLda
 
 class Actor(Module):
