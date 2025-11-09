@@ -24,7 +24,7 @@ class Env():
         pass
 
 class GridEnv(Env):
-    def __init__(self, bounds, res, obstacles, use_shaped=False, render_mode='human'):
+    def __init__(self, bounds, res, obstacles=None, use_shaped=False, render_mode='human'):
         # Environment
         self.bounds = bounds
         self.res = res
@@ -65,14 +65,15 @@ class GridEnv(Env):
             x_range = np.arange(self.bounds[0][0], self.bounds[0][1] + 1e-9, step=self.res)
             y_range = np.arange(self.bounds[1][0], self.bounds[1][1] + 1e-9, step=self.res)
 
-            # Plot landmarks
-            for o in self.obstacles:
-                # Plot obstacles as rectanagles
-                rect = patches.Rectangle(
-                    (o[0], o[1]), self.res, self.res,
-                    facecolor='gray', edgecolor='black'
-                )
-                self.ax.add_patch(rect)
+            # Plot obstacles
+            if self.obstacles is not None:
+                for o in self.obstacles:
+                    # Plot obstacles as rectanagles
+                    rect = patches.Rectangle(
+                        (o[0], o[1]), self.res, self.res,
+                        facecolor='gray', edgecolor='black'
+                    )
+                    self.ax.add_patch(rect)
 
             # Set up grid
             self.ax.set_xticks(x_range)
@@ -135,8 +136,12 @@ class GridEnv(Env):
             self.start = round_to_res(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
             self.goal = round_to_res(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
             self.pos = round_to_res(self.start.copy(), self.res)
-            initialized[0] = tuple(self.start) not in self.obstacles    # Don't start on obstacle
-            initialized[1] = tuple(self.goal) not in self.obstacles     # Don't end on obstacle
+            if self.obstacles is not None:
+                initialized[0] = tuple(self.start) not in self.obstacles    # Don't start on obstacle
+                initialized[1] = tuple(self.goal) not in self.obstacles     # Don't end on obstacle
+            else:
+                initialized[0] = 1
+                initialized[1] = 1
             initialized[2] = tuple(self.start) != tuple(self.goal)      # Don't start on goal
             if self.fig is None:
                 self.__init_render__()
@@ -160,7 +165,8 @@ class GridEnv(Env):
 
         # Check for rewards or punishments
         reward = self.time_penalty
-        if tuple(next_state) in self.obstacles or self.out_of_bounds(next_state):
+        obs_collision = (self.obstacles is not None) and (tuple(next_state) in self.obstacles)
+        if obs_collision or self.out_of_bounds(next_state):
             # Hit obstacle or out of bounds
             reward += self.punishment
         elif (next_state == self.goal).all():

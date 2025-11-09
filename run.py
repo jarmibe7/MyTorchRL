@@ -26,7 +26,7 @@ def main():
     obstacles = get_obstacles(bounds, res, inflate=0)
 
     # Create and initialize environment
-    env = GridEnv(bounds, res, obstacles, use_shaped=True, render_mode='human')
+    env = GridEnv(bounds, res, obstacles=None, use_shaped=True, render_mode='human')
     obs, info = env.reset()
 
     # Initialize model
