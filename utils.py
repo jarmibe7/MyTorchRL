@@ -3,12 +3,7 @@ Hold common utility functions.
 """
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import matplotlib.path as mpl_path
 import os
-import json
-import time
 
 PLOT_PATH = os.path.join(__file__, "..\\figures")
 DATA_PATH = os.path.join(__file__, "..\\data")

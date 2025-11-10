@@ -1,7 +1,6 @@
 """
 Deep Advantage Actor-Critic (A2C) algorithm.
 
-A2C Tutorial: https://medium.com/@dixitaniket76/advantage-actor-critic-a2c-algorithm-explained-and-implemented-in-pytorch-dc3354b60b50
 A2C Paper: https://arxiv.org/abs/1602.01783
 Advantage Normalization: https://github.com/openai/baselines/issues/362
 

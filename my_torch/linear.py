@@ -4,7 +4,7 @@ A linear layer for a neural network.
 
 Author: Jared Berry
 
-Xavier Weight Initialization: https://medium.com/data-science/lets-code-a-neural-network-in-plain-numpy-ae7e74410795
+Xavier Weight Initialization: https://proceedings.mlr.press/v9/glorot10a.html
 
 """
 import numpy as np
