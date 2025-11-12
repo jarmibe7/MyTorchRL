@@ -41,14 +41,14 @@ def main():
 
     # Initialize model
     critic_arch = [
-        (env.state_dim, 64, 'relu'),
-        (64, 128, 'relu'),
-        (128, 1, 'dummy')
+        (env.state_dim, 32, 'relu'),
+        (32, 64, 'relu'),
+        (64, 1, 'dummy')
     ]
     actor_arch = [
-        (env.state_dim, 64, 'relu'),
-        (64, 128, 'relu'),
-        (128, env.action_dim, 'softmax')
+        (env.state_dim, 32, 'relu'),
+        (32, 64, 'relu'),
+        (64, env.action_dim, 'softmax')
     ]
     alpha_actor = 1e-4
     alpha_critic = 1e-4

@@ -37,7 +37,8 @@ class A2CActorLoss(Loss):
     def backward(self):
         # Only calculate gradient for selected action
         dLda = np.zeros_like(self.action_probs)
-        dLda[self.batch_indices, self.actions] = self.advantages / (self.selected_probs + 1e-8)
+        # dL/dp_selected = - advantage / p_selected  (from d(-log p * A)/dp)
+        dLda[self.batch_indices, self.actions] = -self.advantages / (self.selected_probs + 1e-8)
         return dLda
 
 class Actor(Module):
@@ -370,9 +371,9 @@ class A2C():
 
                 # Compute actor loss and update
                 advantage = target - value
-                advantage = np.clip(advantage, -1.0, 1.0)
+                # advantage = np.clip(advantage, -1.0, 1.0)
                 # advantages[int(episode*self.step_limit + step_count)] = advantage
-                # advantage = advantage / (np.std(advantage) + 1e-8)
+                advantage = advantage / (np.std(advantage) + 1e-8)
                 actor_loss = self.actor.criterion(action, action_probs, advantage)
                 actor_gradients = self.actor.backward()
                 actor_converged = self.actor.optimize()
