@@ -9,6 +9,8 @@ Author: Jared Berry
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import json
+import time
 
 from my_torch.module import Module
 from my_torch.ff import FeedForward
@@ -17,6 +19,8 @@ from my_torch.loss import Loss, MSELoss
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PLOT_PATH = os.path.join(SCRIPT_DIR, "figures")
 PLOT_PATH = os.path.normpath(PLOT_PATH)
+METRICS_PATH = os.path.join(SCRIPT_DIR, "metrics")
+METRICS_PATH = os.path.normpath(METRICS_PATH)
 
 class A2CActorLoss(Loss):
     """
@@ -32,7 +36,7 @@ class A2CActorLoss(Loss):
         self.advantages = advantages.flatten()
         self.batch_indices = np.arange(action_probs.shape[0])
         self.selected_probs = self.action_probs[self.batch_indices, self.actions]
-        return -np.log(self.selected_probs + 1e-8)*self.advantages
+        return np.mean(-np.log(self.selected_probs + 1e-8)*self.advantages)
     
     def backward(self):
         # Only calculate gradient for selected action
@@ -153,7 +157,9 @@ class A2C():
         self.__init_plot__()
 
     def __init_plot__(self):
-        # Initalize figure for plotting
+        """
+        Initalize figure for plotting
+        """
         self.plot_history = {"reward": [], "actor_loss": [], "critic_loss": [], "advantage": []}
         self.fig, self.axs = plt.subplots(4, 1, figsize=(8, 10))
         titles = [
@@ -174,7 +180,9 @@ class A2C():
             plt.ioff()
 
     def __init_logging__(self):
-        # Reset episode statistics logger
+        """
+        Reset episode statistics logger
+        """
         self.logger = {
             'episode': 0,
             'critic_loss': [],
@@ -186,7 +194,9 @@ class A2C():
         }
 
     def __init_batch__(self):
-        # Reset batch data structure
+        """
+        Reset batch data structure
+        """
         self.batch = {
             'states': [],
             'actions': [],
@@ -197,6 +207,9 @@ class A2C():
         }
 
     def update_plot(self, avg_critic_loss, avg_reward, avg_actor_loss, avg_advantage):
+        """
+        Update live training plot
+        """
         # Update plot history arrays
         self.plot_history["reward"].append(avg_reward)
         self.plot_history["actor_loss"].append(avg_actor_loss)
@@ -208,22 +221,27 @@ class A2C():
             self.axs[0].cla(); self.axs[0].plot(self.plot_history["reward"], label="Reward", color='blue'); self.axs[0].legend(); self.axs[0].grid(True)
             self.axs[1].cla(); self.axs[1].plot(self.plot_history["actor_loss"], label="Actor Loss", color='orange'); self.axs[1].legend(); self.axs[1].grid(True)
             self.axs[2].cla(); self.axs[2].plot(self.plot_history["critic_loss"], label="Critic Loss", color='green'); self.axs[2].legend(); self.axs[2].grid(True)
-            self.axs[3].cla(); self.axs[3].plot(self.plot_history["advantage"], label="Advantage", color='red'); self.axs[3].legend(); self.axs[3].grid(True)
+            self.axs[3].cla(); self.axs[3].plot(self.plot_history["advantage"], label="Max Advantage", color='red'); self.axs[3].legend(); self.axs[3].grid(True)
 
             plt.tight_layout()
             if self.render: plt.pause(0.001)
 
     def save_plot(self):
-        # Save training plot
+        """
+        Save live training plot
+        """
         filepath = os.path.join(PLOT_PATH, 'a2c_0.png')
         self.fig.savefig(filepath)
 
     def display_episode(self):
+        """
+        Print training stats to terminal
+        """
         # Store running means
         avg_critic_loss = np.mean(np.array(self.logger["critic_loss"])) if len(self.logger["critic_loss"]) > 0 else 0
         avg_reward = np.mean(np.array(self.logger["reward"])) if len(self.logger["reward"]) > 0 else 0
         avg_actor_loss = np.mean(np.array(self.logger["actor_loss"])) if len(self.logger["actor_loss"]) > 0 else 0
-        avg_advantage = np.mean(np.array(self.logger["advantage"])) if len(self.logger["advantage"]) > 0 else 0
+        max_advantage = np.max(np.abs(np.array(self.logger["advantage"]))) if len(self.logger["advantage"]) > 0 else 0
 
         # Display episode statistics
         print('\n----------------------------')
@@ -233,13 +251,16 @@ class A2C():
         print(f'Avg. Reward: {avg_reward}')
         print(f'Avg. Actor Loss: {avg_actor_loss}')
         print(f'Avg. Max Actor Gradient: {np.mean(np.array(self.logger['actor_max_grad']))}')
-        print(f'Avg. Advantage: {avg_advantage}')
+        print(f'Max Advantage: {max_advantage}')
         print('----------------------------\n')
-        self.update_plot(avg_critic_loss, avg_reward, avg_actor_loss, avg_advantage)
+        self.update_plot(avg_critic_loss, avg_reward, avg_actor_loss, max_advantage)
         self.__init_logging__()
         return
     
     def collect_rollouts(self):
+        """
+        Collect a batch of training data
+        """
         self.__init_batch__()
         # Collect batch of rollouts
         for rollout in range(self.rollout_limit):
@@ -253,12 +274,11 @@ class A2C():
                 action_probs = self.actor(state)
                 action = self.env.sample_action(probs=action_probs[0])
 
-                # To explore, take an unlikely action
+                # Epsilon greedy exploration
                 exp_chance = np.random.uniform(0.0, 1.0)
                 if exp_chance < self.exp_prob:
-                    inverse_probs = (1.0 - action_probs)
-                    action_probs = inverse_probs / np.sum(inverse_probs)
-                    action = self.env.sample_action(probs=action_probs[0])
+                    explore_probs = np.array([0.25, 0.25, 0.25, 0.25])
+                    action = self.env.sample_action(probs=explore_probs)
                 
                 next_state, reward, terminated, truncated, info = self.env.step(action)
                 
@@ -273,7 +293,7 @@ class A2C():
                 state = next_state
                 done = terminated or truncated
                 step_count += 1
-                if self.num_rollouts % 1000 == 0: self.env.render()
+                if self.num_rollouts % 100000 == 0: self.env.render()
             self.num_rollouts += 1
 
         # Convert to numpy arrays
@@ -287,10 +307,13 @@ class A2C():
         return
 
     def batch_train(self):
-        # Collect batch of training data
-        for step in range(self.episode_limit):
+        """
+        Training on batched data
+        """
+        for episode in range(self.episode_limit):
+            # Collect batch of training data
             self.collect_rollouts()
-            self.logger['episode'] = step
+            self.logger['episode'] = episode
 
             # Unpack batched variables
             states = self.batch['states']
@@ -302,9 +325,7 @@ class A2C():
 
             # Estimate value and next value with critic
             value = self.critic(states)
-            value = np.clip(value, -10.0, 10.0)
             next_value = self.critic(next_states)
-            next_value = np.clip(next_value, -10.0, 10.0)
 
             # Compute critic loss and update
             # If next state is terminal no need to incorporate future rewards
@@ -333,6 +354,9 @@ class A2C():
         return
 
     def train(self):
+        """
+        Training on individual transitions
+        """
         # Main A2C training loop
         advantages = np.zeros((self.episode_limit*self.step_limit))
         for episode in range(self.episode_limit):
@@ -389,12 +413,68 @@ class A2C():
                 # Update current state and step count
                 state = next_state
                 done = terminated or truncated
-                if episode % 100 == 0: self.env.render()
+                if episode % 10000 == 0: self.env.render()
                 step_count += 1
 
             self.display_episode()
 
+    def test(self, num_episodes=100, step_limit=100, save=True):
+        """
+        Test the learned policy with no exploration
+        """
+        # Iterate over episodes
+        test_rewards = []
+        test_lengths = []
+        test_successes = []
+        for episode in range(num_episodes):
+            state, _ = self.env.reset()
+            done = False
+            step_count = 0
+            episode_reward = 0.0
+            success = False
+            
+            while not done and step_count < step_limit:
+                # Take greedy action
+                action = np.argmax(self.actor(state))
+                next_state, reward, terminated, truncated, _ = self.env.step(action)
+                done = terminated or truncated
+                
+                # Record progress
+                episode_reward += reward
+                if terminated:
+                    success = True
+                
+                if self.env.render_mode == 'human': self.env.render()
+                state = next_state
+                step_count += 1
+            
+            test_rewards.append(episode_reward)
+            test_lengths.append(step_count)
+            test_successes.append(1 if success else 0)
+        
+        # Calculate metrics
+        avg_reward = np.mean(test_rewards)
+        avg_length = np.mean(test_lengths)
+        success_rate = np.mean(test_successes)
+
+        # Save metrics
+        metrics_dict = {
+            'success_rate': success_rate,
+            'avg_reward': avg_reward,
+            'avg_length': avg_length,
+        }
+        if save:
+            filepath = os.path.join(METRICS_PATH, f'ql_metrics_{time.time()}.json')
+            with open(filepath, "w") as f:
+                json.dump(metrics_dict, f, indent=4)
+
+        return metrics_dict
+
     def learn(self, batch=True):
+        """
+        Main function to run training
+        """
+        print(f"Starting deep RL training with A2C for {self.episode_limit} episodes...\n")
         try:
             if batch: self.batch_train()
             else: self.train()
