@@ -201,6 +201,7 @@ class A2C():
             'actions': [],
             'action_probs': [],
             'rewards': [],
+            'episode_rewards': [],
             'next_states': [],
             'dones': [],
         }
@@ -266,7 +267,7 @@ class A2C():
             state, _ = self.env.reset()
             done = False
             step_count = 0
-            # self.logger['episode'] = episode
+            rollout_reward = 0.0
 
             while not done and step_count < self.step_limit:
                 # Take action
@@ -286,6 +287,7 @@ class A2C():
                 self.batch['actions'].append(action)
                 self.batch['action_probs'].append(action_probs)
                 self.batch['rewards'].append(reward)
+                rollout_reward += float(reward)
                 self.batch['next_states'].append(next_state)
                 self.batch['dones'].append(terminated or truncated)
 
@@ -295,6 +297,7 @@ class A2C():
                 self.total_timesteps += 1
                 if self.num_rollouts % 100000 == 0: self.env.render()
             self.num_rollouts += 1
+            self.batch['episode_rewards'].append(rollout_reward)
 
         # Convert to numpy arrays
         self.batch['states'] = np.vstack(self.batch['states'])
@@ -351,7 +354,12 @@ class A2C():
             # Logging
             self.logger['critic_loss'].append(critic_loss)
             self.logger['critic_max_grad'].append(max(grad[0].max() for grad in critic_gradients))
-            self.logger['reward'].extend(list(rewards))
+            episode_rewards = self.batch.get('episode_rewards', [])
+            if len(episode_rewards) > 0:
+                self.logger['reward'].extend(list(episode_rewards))
+            else:
+                # Fallback to timestep rewards if episode rewards not available
+                self.logger['reward'].extend(list(rewards))
             self.logger['actor_loss'].append(actor_loss)
             self.logger['actor_max_grad'].append(max(grad[0].max() for grad in actor_gradients))
             self.logger['advantage'].extend(list(advantage))
@@ -373,6 +381,7 @@ class A2C():
             done = False
             step_count = 0
             self.logger['episode'] = episode
+            episode_reward = 0.0
 
             while not done and step_count < self.step_limit:
                 # Get action probabilities from actor and select action
@@ -414,7 +423,7 @@ class A2C():
                 # Logging
                 self.logger['critic_loss'].append(critic_loss)
                 self.logger['critic_max_grad'].append(max(grad[0].max() for grad in critic_gradients))
-                self.logger['reward'].append(reward)
+                episode_reward += float(reward)
                 self.logger['actor_loss'].append(actor_loss)
                 self.logger['actor_max_grad'].append(max(grad[0].max() for grad in actor_gradients))
                 self.logger['advantage'].append(advantage)
@@ -425,6 +434,8 @@ class A2C():
                 if episode % 10000 == 0: self.env.render()
                 step_count += 1
 
+            # Append the cumulative episode reward for plotting/metrics
+            self.logger['reward'].append(episode_reward)
             self.display_episode()
 
     def test(self, num_episodes=100, step_limit=100, save=True):
@@ -477,7 +488,7 @@ class A2C():
             'total_timesteps': self.total_timesteps
         }
         if save:
-            filepath = os.path.join(METRICS_PATH, f'a2c_metrics_{time.time()}.json')
+            filepath = os.path.join(METRICS_PATH, f'a2c_{time.time()}.json')
             with open(filepath, "w") as f:
                 json.dump(metrics_dict, f, indent=4)
 

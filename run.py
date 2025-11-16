@@ -33,11 +33,11 @@ def main():
         [-2, 5],    # x bounds
         [-6, 6]     # y bounds
     ])
-    res = 0.1
+    res = 1.0
     obstacles = get_obstacles(bounds, res, inflate=0)
 
     # Whether to use a vanilla or deep formulation for RL
-    use_deep = False
+    use_deep = True
 
     # Initialize model
     if use_deep:
@@ -62,7 +62,7 @@ def main():
             gamma=0.99,
             exp_prob=0.1,
             rollout_limit=25,
-            episode_limit=50000, 
+            episode_limit=25000, 
             step_limit=100, 
             conv_thresh=1e-5, 
         )
@@ -74,7 +74,7 @@ def main():
             alpha=0.01,
             gamma=0.99,
             epsilon=0.0,
-            episode_limit=30000,
+            episode_limit=25000,
             step_limit=500,
             conv_thresh=-1
         )

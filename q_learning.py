@@ -61,10 +61,6 @@ class VanillaQL:
         self.episode_rewards = []
         self.episode_lengths = []
         self.episode_successes = []
-        self.episode_max_q_deltas = []  # Track max Q-change per episode
-        self.window_size = 100  # Episodes per evaluation window
-        self.convergence_counter = 0
-        self.convergence_threshold_windows = 3  # Converged if stable for 3 windows
     
     def discretize_state(self, state):
         """
