@@ -37,7 +37,7 @@ def main():
     obstacles = get_obstacles(bounds, res, inflate=0)
 
     # Whether to use a vanilla or deep formulation for RL
-    use_deep = True
+    use_deep = False
 
     # Initialize model
     if use_deep:
@@ -57,12 +57,12 @@ def main():
             env, 
             critic_arch, 
             actor_arch, 
-            alpha_actor=1e-5, 
-            alpha_critic=1e-5, 
+            alpha_actor=1e-4, 
+            alpha_critic=1e-4, 
             gamma=0.99,
-            exp_prob=0.1,
+            exp_prob=0.025,
             rollout_limit=25,
-            episode_limit=25000, 
+            episode_limit=50000, 
             step_limit=100, 
             conv_thresh=1e-5, 
         )
