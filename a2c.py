@@ -119,7 +119,6 @@ class A2C():
         episode_limit: Limit number of episodes for training
         step_limit: Limit number of timesteps per episode
         conv_thresh: Gradient convergence threshold
-        save_model: Whether to save model weights
     """
     def __init__(self, 
                  env, 
@@ -132,8 +131,7 @@ class A2C():
                  rollout_limit,
                  episode_limit, 
                  step_limit, 
-                 conv_thresh, 
-                 save_model):
+                 conv_thresh):
         # Assign environment
         self.env = env
 
@@ -148,7 +146,8 @@ class A2C():
         self.num_rollouts = 0
         self.episode_limit = episode_limit
         self.step_limit = step_limit
-        self.save_model = save_model
+        self.converged = False
+        self.total_timesteps = 0
 
         # Logging and visualization
         self.render = self.env.render_mode == 'human'
@@ -293,6 +292,7 @@ class A2C():
                 state = next_state
                 done = terminated or truncated
                 step_count += 1
+                self.total_timesteps += 1
                 if self.num_rollouts % 100000 == 0: self.env.render()
             self.num_rollouts += 1
 
@@ -311,6 +311,9 @@ class A2C():
         Training on batched data
         """
         for episode in range(self.episode_limit):
+            # Exit if converged
+            if self.converged: break
+
             # Collect batch of training data
             self.collect_rollouts()
             self.logger['episode'] = episode
@@ -341,6 +344,10 @@ class A2C():
             actor_gradients = self.actor.backward()
             actor_converged = self.actor.optimize()
 
+            # Check convergence
+            if critic_converged and actor_converged:
+                self.converged = True
+
             # Logging
             self.logger['critic_loss'].append(critic_loss)
             self.logger['critic_max_grad'].append(max(grad[0].max() for grad in critic_gradients))
@@ -355,7 +362,9 @@ class A2C():
 
     def train(self):
         """
-        Training on individual transitions
+        Training on individual transitions.
+
+        This function is not up to date!
         """
         # Main A2C training loop
         advantages = np.zeros((self.episode_limit*self.step_limit))
@@ -422,6 +431,7 @@ class A2C():
         """
         Test the learned policy with no exploration
         """
+        print(f"Running eval on trained A2C for {num_episodes} episodes...\n")
         # Iterate over episodes
         test_rewards = []
         test_lengths = []
@@ -455,6 +465,7 @@ class A2C():
         # Calculate metrics
         avg_reward = np.mean(test_rewards)
         avg_length = np.mean(test_lengths)
+        std_length = np.std(test_lengths)
         success_rate = np.mean(test_successes)
 
         # Save metrics
@@ -462,9 +473,11 @@ class A2C():
             'success_rate': success_rate,
             'avg_reward': avg_reward,
             'avg_length': avg_length,
+            'std_length': std_length,
+            'total_timesteps': self.total_timesteps
         }
         if save:
-            filepath = os.path.join(METRICS_PATH, f'ql_metrics_{time.time()}.json')
+            filepath = os.path.join(METRICS_PATH, f'a2c_metrics_{time.time()}.json')
             with open(filepath, "w") as f:
                 json.dump(metrics_dict, f, indent=4)
 

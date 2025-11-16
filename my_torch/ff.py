@@ -19,6 +19,7 @@ class FeedForward(Module):
         loss_type: A string specifying what type of loss function to use.
         alpha: Learning rate
         conv_thresh: If the maximum gradient magnitude is less than this threshold, optimize will return True.
+        weight_init: Type of weight initialization for linear layers.
     """
     def __init__(self, arch, loss_type, alpha, conv_thresh, weight_init='xavier'):
         super().__init__()

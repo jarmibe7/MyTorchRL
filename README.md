@@ -47,6 +47,8 @@ be selected by setting the variable ```use_deep``` on line 40 in run.py.
 
 - run.py: Contains main function for running RL training.
 
+- test_gym.py Script for testing custom Gymnasium functionality.
+
 - test_nn.py: Script for testing custom neural net functionality.
 
 - utils.py: Various utility functions.

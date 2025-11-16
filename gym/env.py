@@ -48,7 +48,7 @@ class DeepRLGridEnv(Env):
 
         # Reward value
         self.reward = 10.0
-        self.punishment = -0.0
+        self.punishment = -1.0
         self.use_shaped = use_shaped
         self.shaped_mult = 0.1
         self.time_penalty = -0.01
@@ -173,25 +173,14 @@ class DeepRLGridEnv(Env):
         """
         Initialize starting and goal positions
         """
-        initialized = np.zeros((3,))
-        while not initialized.all():
-            self.start = round_to_res(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
-            self.goal = round_to_res(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
-            self.pos = round_to_res(self.start.copy(), self.res)
-            if self.obstacles is not None:
-                initialized[0] = tuple(self.start) not in self.obstacles    # Don't start on obstacle
-                initialized[1] = tuple(self.goal) not in self.obstacles     # Don't end on obstacle
-            else:
-                initialized[0] = 1
-                initialized[1] = 1
-            initialized[2] = tuple(self.start) != tuple(self.goal)      # Don't start on goal
-            if self.fig is None:
-                self.__init_render__()
-            else:
-                # Update start and goal positions
-                self.start_patch.set_xy(self.start)
-                self.goal_patch.set_xy(self.goal)
-                self.robot_patch.set_xy(self.pos)
+        self.init_start_goal()
+        if self.fig is None:
+            self.__init_render__()
+        else:
+            # Update start and goal positions
+            self.start_patch.set_xy(self.start)
+            self.goal_patch.set_xy(self.goal)
+            self.robot_patch.set_xy(self.pos)
 
         # Add batch dimension to observation
         self.prev_dist = np.linalg.norm(self.pos - self.goal)
@@ -236,7 +225,7 @@ class DeepRLGridEnv(Env):
         if obs_collision or self.out_of_bounds(next_state):
             # Hit obstacle or out of bounds
             reward += self.punishment
-            truncated = True
+            # truncated = True
         elif (next_state == self.goal).all():
             # Found goal
             reward += self.reward
@@ -251,11 +240,6 @@ class DeepRLGridEnv(Env):
             reward -= 2.0*self.shaped_mult*self.reward
             self.pos = round_to_res(next_state, self.res)
 
-        # # Shaped reward uses inverse distance
-        # if self.use_shaped: 
-        #     dist = np.linalg.norm(self.pos - self.goal)
-        #     reward += self.shaped_mult*(1 - dist / self.max_dist)
-
         self.prev_dist = np.linalg.norm(self.pos - self.goal)
         obs = np.array(self.pos - self.goal)
         return obs[np.newaxis, ...], reward, terminated, truncated, {}
@@ -268,6 +252,9 @@ class DeepRLGridEnv(Env):
             self.fig.canvas.flush_events()
         elif self.render_mode == 'no_vis':
             return
+        
+    def close(self):
+        plt.close()
         
 class QLGridEnv(Env):
     """
@@ -293,9 +280,9 @@ class QLGridEnv(Env):
         self.init_start_goal(init=True)
 
         # Reward value
-        self.reward = 10.0
-        self.punishment = -0.0
-        self.shaped_mult = 0.1
+        self.reward = 100.0
+        self.punishment = -100.0
+        self.shaped_mult = 0.001
 
         # Action and state space
         self.state_dim = 4
@@ -479,3 +466,6 @@ class QLGridEnv(Env):
             self.fig.canvas.flush_events()
         elif self.render_mode == 'no_vis':
             return
+
+    def close(self):
+        plt.close()

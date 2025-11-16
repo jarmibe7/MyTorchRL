@@ -1,0 +1,7 @@
+{
+    "success_rate": 1.0,
+    "avg_reward": 40.0,
+    "avg_length": 6.0,
+    "std_length": 0.0,
+    "total_timesteps": 649
+}

@@ -33,16 +33,16 @@ def main():
         [-2, 5],    # x bounds
         [-6, 6]     # y bounds
     ])
-    res = 1.0
+    res = 0.1
     obstacles = get_obstacles(bounds, res, inflate=0)
 
     # Whether to use a vanilla or deep formulation for RL
-    use_deep = True
+    use_deep = False
 
     # Initialize model
     if use_deep:
         # Create deep RL A2C agent
-        env = DeepRLGridEnv(bounds, res, obstacles=obstacles, use_shaped=True, wrap_arena=True, render_mode='human')
+        env = DeepRLGridEnv(bounds, res, obstacles=None, use_shaped=True, wrap_arena=False, render_mode='no_vis', randomize_start=False, randomize_goal=False)
         critic_arch = [
             (env.state_dim, 16, 'relu'),
             (16, 32, 'relu'),
@@ -53,43 +53,35 @@ def main():
             (16, 16, 'relu'),
             (16, env.action_dim, 'softmax')
         ]
-        alpha_actor = 1e-5
-        alpha_critic = 1e-5
-        gamma = 0.99
-        exp_prob = 0.1
-        rollout_limit = 25
-        episode_limit = 50000
-        step_limit = 100
-        conv_thresh = 1e-5
         model = A2C(
             env, 
             critic_arch, 
             actor_arch, 
-            alpha_actor, 
-            alpha_critic, 
-            gamma,
-            exp_prob,
-            rollout_limit,
-            episode_limit, 
-            step_limit, 
-            conv_thresh, 
-            save_model=False
+            alpha_actor=1e-5, 
+            alpha_critic=1e-5, 
+            gamma=0.99,
+            exp_prob=0.1,
+            rollout_limit=25,
+            episode_limit=50000, 
+            step_limit=100, 
+            conv_thresh=1e-5, 
         )
     else:
         # Create vanilla Q-learning agent
-        env = QLGridEnv(bounds, res, obstacles=None, render_mode='no_vis', randomize_start=True, randomize_goal=True)
+        env = QLGridEnv(bounds, res, obstacles=None, render_mode='no_vis', randomize_start=False, randomize_goal=False)
         model = VanillaQL(
             env,
-            alpha=0.1,
+            alpha=0.01,
             gamma=0.99,
-            epsilon=0.1,
-            episode_limit=5000,
-            step_limit=100
+            epsilon=0.0,
+            episode_limit=30000,
+            step_limit=500,
+            conv_thresh=-1
         )
     
     model.learn()
 
-    model.env.render_mode = 'human'
+    model.env.render_mode = 'no_vis'
     results = model.test(save=True)
 
     # Final summary

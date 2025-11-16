@@ -16,7 +16,7 @@ def main():
     print("*** STARTING ***\n")
 
     # Load data
-    filename = 'circles.csv'
+    filename = 'spiral.csv'
     filepath = os.path.join(TEST_DATA_PATH, filename)
     dataset = np.loadtxt(filepath, delimiter=',')
     X_train = dataset[:, :-1]
@@ -36,10 +36,15 @@ def main():
     # Create model
     arch = [
         (X_train.shape[1], 64, 'relu'),
-        (64, 32, 'relu'),
-        (32, 8, 'relu'),
-        (8, 1, 'sigmoid')
+        (64, 64, 'relu'),
+        (64, 16, 'relu'),
+        (16, 1, 'sigmoid')
     ]
+    # arch = [
+    #     (X_train.shape[1], 32, 'relu'),
+    #     (32, 8, 'relu'),
+    #     (8, 1, 'sigmoid')
+    # ]
     alpha = 1e-3
     model = FeedForward(arch, 'bce', alpha, conv_thresh=1e-5, weight_init='basic')
     
