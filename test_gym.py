@@ -21,16 +21,25 @@ METRICS_PATH = os.path.normpath(METRICS_PATH)
 
 def main():
     print("*** STARTING ***\n")
+    res_type = 'fine'
+    obs = 'obs'
+
     # Define world bounds and grid resolution
     bounds = np.array([
         [-2, 5],    # x bounds
         [-6, 6]     # y bounds
     ])
-    res = 1.0
-    obstacles = get_obstacles(bounds, res, inflate=0)
+    if res_type == 'coarse': 
+            res = 1.0
+            step_limit = 100
+            inf = 0
+    else: 
+        res = 0.1
+        step_limit = 500
+        inf = 3
 
-    # Whether to use a vanilla or deep formulation for RL
-    use_deep = False
+    if obs == 'obs': obstacles = get_obstacles(bounds, res, inflate=inf)
+    else: obstacles = None
 
     # Initialize env
     env = QLGridEnv(bounds, res, obstacles=obstacles, render_mode='no_vis', randomize_start=True, randomize_goal=False)
@@ -38,7 +47,6 @@ def main():
     test_lengths = []
     test_successes = []
     num_episodes = 100
-    step_limit = 100
     for episode in range(num_episodes):
         state, _ = env.reset()
         done = False
@@ -77,7 +85,7 @@ def main():
         'avg_length': avg_length,
         'std_length': std_length,
     }
-    filepath = os.path.join(METRICS_PATH, f'baseline_metrics.json')
+    filepath = os.path.join(METRICS_PATH, f'baseline_{res_type}_{obs}.json')
     with open(filepath, "w") as f:
         json.dump(results, f, indent=4)
 

@@ -26,7 +26,7 @@ class VanillaQL:
         step_limit: How many transitions per episode
     """
     loaded = False
-    def __init__(self, env, alpha=0.1, gamma=0.99, epsilon=0.1, episode_limit=5000, step_limit=100, conv_thresh=1e-5):
+    def __init__(self, env, alpha=0.1, gamma=0.99, epsilon=0.1, episode_limit=5000, step_limit=100):
         # Initialize params
         self.env = env
         self.alpha = alpha
@@ -34,7 +34,6 @@ class VanillaQL:
         self.epsilon = epsilon
         self.episode_limit = episode_limit
         self.step_limit = step_limit
-        self.conv_thresh = conv_thresh
         self.converged = False
         self.total_timesteps = 0
         
@@ -121,8 +120,6 @@ class VanillaQL:
         target = reward + self.gamma * max_next_q
         error = target - current_q
         self.Q[state_bin][action] += self.alpha * error
-        # if np.abs(self.alpha*error) <= self.conv_thresh: 
-        #     self.converged = True
     
     def train(self):
         """
@@ -174,7 +171,7 @@ class VanillaQL:
                 avg_reward = np.mean(self.episode_rewards[-500:])
                 avg_length = np.mean(self.episode_lengths[-500:])
                 success_rate = np.mean(self.episode_successes[-500:])
-                if success_rate == 1.0: self.converged=True
+                if episode > 0 and success_rate >= 0.95: self.converged=True
                 print(f"Episode {episode+1}/{self.episode_limit} | "
                       f"Avg Reward: {avg_reward:.3f} | "
                       f"Avg Length: {avg_length:.1f} | "

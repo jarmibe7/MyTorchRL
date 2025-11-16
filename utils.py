@@ -78,6 +78,14 @@ def grid_to_pos(grid, res):
     """
     return np.round(np.array(grid)*res, 1)
 
+def round_to_grid(n, res):
+    """
+    Given a number or np.ndarray of numbers, round to a given grid resolution.
+    """
+    if isinstance(n, tuple): n_arr = np.array(n)
+    else: n_arr = n
+    return np.round(np.floor(n_arr / res)*res, 1)   # TODO: Better way of eliminating floating point
+
 def round_to_res(n, res):
     """
     Given a number or np.ndarray of numbers, round to a given resolution.
@@ -86,7 +94,7 @@ def round_to_res(n, res):
     else: n_arr = n
     return np.round(n_arr / res) * res
     # return np.round(np.floor(n_arr / res)*res, 1)   # TODO: Better way of eliminating floating point
-    
+
 def inflate_obstacles(bounds, res, obstacles, inflate):
     """
     Inflate a given set of obstacles by a specified amount
@@ -100,7 +108,7 @@ def inflate_obstacles(bounds, res, obstacles, inflate):
             for dy in range(-inflate, inflate + 1):
                 x, y = (l[0] + dx * res), (l[1] + dy * res)
 
-                l_inf = round_to_res(np.array([x,y]), res)
+                l_inf = round_to_grid(np.array([x,y]), res)
 
                 # Check bounds
                 if bounds[0][0] <= l_inf[0] < bounds[0][1] and bounds[1][0] <= l_inf[1] < bounds[1][1]:

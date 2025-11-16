@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-from utils import round_to_res
+from utils import round_to_res, round_to_grid
 
 class Env():
     def __init__(self):
@@ -143,8 +143,8 @@ class DeepRLGridEnv(Env):
         """
         initialized = np.zeros((3,))
         while not initialized.all():
-            if init or self.randomize_start: self.start = round_to_res(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
-            if init or self.randomize_goal: self.goal = round_to_res(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
+            if init or self.randomize_start: self.start = round_to_grid(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
+            if init or self.randomize_goal: self.goal = round_to_grid(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
             self.pos = round_to_res(self.start.copy(), self.res)
             if self.obstacles is not None:
                 initialized[0] = tuple(self.start) not in self.obstacles    # Don't start on obstacle
@@ -211,7 +211,7 @@ class DeepRLGridEnv(Env):
         next_state = self.pos + action
 
         # Wrap around arena edges
-        if self.wrap_arena: next_state = self.wrap(next_state)
+        if self.wrap_arena: next_state = round_to_res(self.wrap(next_state), self.res)
         
         # Initialize done flags
         terminated, truncated = False, False
@@ -281,7 +281,7 @@ class QLGridEnv(Env):
 
         # Reward value
         self.reward = 100.0
-        self.punishment = -100.0
+        self.punishment = -10.0
         self.shaped_mult = 0.001
 
         # Action and state space
@@ -372,8 +372,8 @@ class QLGridEnv(Env):
         # Initialize starting and goal positions
         initialized = np.zeros((3,))
         while not initialized.all():
-            if init or self.randomize_start: self.start = round_to_res(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
-            if init or self.randomize_goal: self.goal = round_to_res(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
+            if init or self.randomize_start: self.start = round_to_grid(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
+            if init or self.randomize_goal: self.goal = round_to_grid(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
             self.pos = round_to_res(self.start.copy(), self.res)
             if self.obstacles is not None:
                 initialized[0] = tuple(self.start) not in self.obstacles    # Don't start on obstacle
@@ -424,7 +424,7 @@ class QLGridEnv(Env):
         """
         # Get physical action corresponding to action index
         action = self.action_map[action_index]
-        next_state = self.pos + action
+        next_state = round_to_res(self.pos + action, self.res)
         
         # Initialize done flags
         terminated, truncated = False, False
