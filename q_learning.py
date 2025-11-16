@@ -121,8 +121,8 @@ class VanillaQL:
         target = reward + self.gamma * max_next_q
         error = target - current_q
         self.Q[state_bin][action] += self.alpha * error
-        if np.abs(self.alpha*error) <= self.conv_thresh: 
-            self.converged = True
+        # if np.abs(self.alpha*error) <= self.conv_thresh: 
+        #     self.converged = True
     
     def train(self):
         """
@@ -174,6 +174,7 @@ class VanillaQL:
                 avg_reward = np.mean(self.episode_rewards[-500:])
                 avg_length = np.mean(self.episode_lengths[-500:])
                 success_rate = np.mean(self.episode_successes[-500:])
+                if success_rate == 1.0: self.converged=True
                 print(f"Episode {episode+1}/{self.episode_limit} | "
                       f"Avg Reward: {avg_reward:.3f} | "
                       f"Avg Length: {avg_length:.1f} | "

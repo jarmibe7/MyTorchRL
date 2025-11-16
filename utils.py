@@ -84,8 +84,9 @@ def round_to_res(n, res):
     """
     if isinstance(n, tuple): n_arr = np.array(n)
     else: n_arr = n
-    return np.round(np.floor(n_arr / res)*res, 1)   # TODO: Better way of eliminating floating point
-
+    return np.round(n_arr / res) * res
+    # return np.round(np.floor(n_arr / res)*res, 1)   # TODO: Better way of eliminating floating point
+    
 def inflate_obstacles(bounds, res, obstacles, inflate):
     """
     Inflate a given set of obstacles by a specified amount

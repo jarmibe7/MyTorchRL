@@ -33,7 +33,7 @@ def main():
         [-2, 5],    # x bounds
         [-6, 6]     # y bounds
     ])
-    res = 1.0
+    res = 0.1
     obstacles = get_obstacles(bounds, res, inflate=0)
 
     # Whether to use a vanilla or deep formulation for RL
