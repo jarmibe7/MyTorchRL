@@ -22,7 +22,7 @@ import json
 from itertools import product
 
 from gym.env import DeepRLGridEnv, QLGridEnv
-from utils import get_obstacles
+from utils import get_obstacles, plot_model_path
 
 from a2c import A2C
 from q_learning import VanillaQL
@@ -91,12 +91,12 @@ def main():
                     env, 
                     critic_arch, 
                     actor_arch, 
-                    alpha_actor=1e-5, 
+                    alpha_actor=1e-4, 
                     alpha_critic=1e-4, 
                     gamma=0.99,
-                    exp_prob=0.1,
-                    ent_coef=0.05,
-                    rollout_limit=25,
+                    exp_prob=0.0,
+                    ent_coef=0.1,
+                    rollout_limit=10,
                     episode_limit=50000, 
                     step_limit=step_lim, 
                     conv_thresh=1e-5, 
@@ -142,6 +142,8 @@ def main():
             json.dump(metrics_dict, f, indent=4)
 
         print(f'\nOutput to {filepath}')
+
+        plot_model_path(model, f'Path: {alg} {res_type} {obs} {rand}', f'{alg}_{res_type}_{obs}_{rand}.png'), 
 
     print("\n*** DONE ***")
     return

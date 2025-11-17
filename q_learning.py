@@ -241,6 +241,15 @@ class VanillaQL:
         except KeyboardInterrupt:
             self.env.close()
             print('\nManual interrupt, stopping training!')
+
+    def predict(self, state):
+        """
+        Access the actor for predictions
+        """
+        # Take greedy action
+        state_bin = self.discretize_state(state)
+        q_vals = self.Q[state_bin]
+        return np.argmax(q_vals)
     
     def learn(self):
         """

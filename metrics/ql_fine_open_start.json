@@ -1,6 +1,6 @@
 {
-    "avg_total_timesteps": 63112.2,
-    "avg_success_rate": 0.9800000000000001,
-    "avg_episode_length": 67.256,
-    "std_episode_length": 23.70235047159426
+    "avg_total_timesteps": 66163.1,
+    "avg_success_rate": 0.9729999999999999,
+    "avg_episode_length": 75.99999999999999,
+    "std_episode_length": 27.004188936556957
 }

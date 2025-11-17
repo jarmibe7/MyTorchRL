@@ -26,8 +26,9 @@ class A2CActorLoss(Loss):
     """
     Actor loss for the A2C algorithm
     """
-    def __init__(self):
+    def __init__(self, ent_coef):
         super().__init__()
+        self.ent_coef = ent_coef
 
     def forward(self, actions, action_probs, advantages):
         # Negative log action probability of selected action * advantage
@@ -36,13 +37,23 @@ class A2CActorLoss(Loss):
         self.advantages = advantages.flatten()
         self.batch_indices = np.arange(action_probs.shape[0])
         self.selected_probs = self.action_probs[self.batch_indices, self.actions]
-        return np.mean(-np.log(self.selected_probs + 1e-8)*self.advantages)
+
+        # Entropy for exploration
+        self.entropy = -np.sum(action_probs * np.log(action_probs + 1e-8), axis=1)
+
+        return np.mean(-np.log(self.selected_probs + 1e-8)*self.advantages -self.ent_coef*self.entropy)
     
     def backward(self):
         # Only calculate gradient for selected action
         dLda = np.zeros_like(self.action_probs)
         # dL/dp_selected = - advantage / p_selected  (from d(-log p * A)/dp)
         dLda[self.batch_indices, self.actions] = -self.advantages / (self.selected_probs + 1e-8)
+
+        entropy_grad = self.ent_coef * (1.0 + np.log(self.action_probs + 1e-8))
+
+        # Add entropy gradient to total gradient
+        dLda += entropy_grad
+
         return dLda
 
 class Actor(Module):
@@ -55,12 +66,12 @@ class Actor(Module):
         alpha: Learning rate
         conv_thresh: If the maximum gradient magnitude is less than this threshold, optimization should end.
     """
-    def __init__(self, arch, alpha, conv_thresh):
+    def __init__(self, arch, alpha, conv_thresh, ent_coef):
         super().__init__()
         self.input_size = arch[0][0]
         self.num_actions = arch[-1][1]
         self.ff = FeedForward(arch, loss_type=None, alpha=alpha, conv_thresh=conv_thresh)
-        self.criterion = A2CActorLoss()
+        self.criterion = A2CActorLoss(ent_coef)
 
     def forward(self, x):
         out = self.ff(x)
@@ -139,7 +150,7 @@ class A2C():
 
         # Create actor and critic
         self.critic = Critic(critic_arch, alpha=alpha_critic, conv_thresh=conv_thresh)
-        self.actor = Actor(actor_arch, alpha=alpha_actor, conv_thresh=conv_thresh)
+        self.actor = Actor(actor_arch, alpha=alpha_actor, conv_thresh=conv_thresh, ent_coef=ent_coef)
 
         # Algorithm params
         self.gamma = gamma
@@ -348,10 +359,6 @@ class A2C():
             advantage = target - value
             # advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + 1e-8) # Normalize the advantage
             actor_loss = self.actor.criterion(actions, action_probs, advantage)
-            
-            entropy = -np.sum(action_probs * np.log(action_probs + 1e-8), axis=1)
-            actor_loss = actor_loss - self.ent_coef*np.mean(entropy)
-
             actor_gradients = self.actor.backward()
             actor_converged = self.actor.optimize()
 
@@ -501,6 +508,14 @@ class A2C():
                 json.dump(metrics_dict, f, indent=4)
 
         return metrics_dict
+    
+    def predict(self, state):
+        """
+        Access the actor for predictions
+        """
+        action_probs = self.actor(state)
+        action = self.env.sample_action(probs=action_probs[0])
+        return action
 
     def learn(self, batch=True):
         """
