@@ -37,20 +37,20 @@ class VanillaQL:
         self.converged = False
         self.total_timesteps = 0
         
-        # Discretize state space based on resolution
-        self.x_range = int(env.bounds[0][1] - env.bounds[0][0])
-        self.y_range = int(env.bounds[1][1] - env.bounds[1][0])
-        
-        # Number of bins per dimension
-        self.num_pos_x_states = int(np.ceil(self.x_range / env.res))
-        self.num_pos_y_states = int(np.ceil(self.y_range / env.res))
-        
-        # Relative position can range from -bounds to +bounds
-        self.num_rel_x_states = int(np.ceil((self.x_range * 2) / env.res))
-        self.num_rel_y_states = int(np.ceil((self.y_range * 2) / env.res))
+        # Number of pos states correspond to grid cells in x and y
+        self.num_pos_x_states = int(env.grid_max[0] - env.grid_min[0])
+        self.num_pos_y_states = int(env.grid_max[1] - env.grid_min[1])
+
+        # Relative position states span [-num_pos, +num_pos) in grid units
+        self.num_rel_x_states = int(self.num_pos_x_states * 2)
+        self.num_rel_y_states = int(self.num_pos_y_states * 2)
+
+        # Get env vars
         self.res = env.res
         self.bounds = env.bounds
-        
+        self.grid_min = env.grid_min
+        self.grid_max = env.grid_max
+
         # Initialize Q-table: Q[pos_x_bin, pos_y_bin, rel_x_bin, rel_y_bin, action]
         self.Q = np.zeros((self.num_pos_x_states, self.num_pos_y_states, 
                            self.num_rel_x_states, self.num_rel_y_states, 
@@ -63,31 +63,31 @@ class VanillaQL:
     
     def discretize_state(self, state):
         """
-        Convert continuous 4D state [pos_x, pos_y, rel_x, rel_y] to discrete grid indices.
-        
+        Convert 4D state [pos_x, pos_y, rel_x, rel_y] to grid indices
+
         Args:
             state: 4D numpy array [pos_x, pos_y, rel_x, rel_y]
         """
-        # Extract absolute and relative parts
-        pos_x, pos_y = state[0], state[1]
-        rel_x, rel_y = state[2], state[3]
-        
-        # Discretize absolute position [relative to bounds]
-        pos_x_bin = int((pos_x - self.bounds[0][0]) / self.res)
-        pos_y_bin = int((pos_y - self.bounds[1][0]) / self.res)
-        
-        # Discretize positionss
-        rel_x_offset = self.x_range / 2.0
-        rel_y_offset = self.y_range / 2.0
-        rel_x_bin = int((rel_x + rel_x_offset) / self.res)
-        rel_y_bin = int((rel_y + rel_y_offset) / self.res)
-        
+        # Handle batched input
+        arr = np.array(state).squeeze()
+        if arr.ndim != 1 or arr.size != 4:
+            arr = arr.flatten()
+        pos_x, pos_y, rel_x, rel_y = int(arr[0]), int(arr[1]), int(arr[2]), int(arr[3])
+
+        # Map absolute grid position to index 
+        pos_x_bin = pos_x - int(self.grid_min[0])
+        pos_y_bin = pos_y - int(self.grid_min[1])
+
+        # Map relative grid pos to index by offsetting by num_pos
+        rel_x_bin = rel_x + int(self.num_pos_x_states)
+        rel_y_bin = rel_y + int(self.num_pos_y_states)
+
         # Clamp to valid range
-        pos_x_bin = np.clip(pos_x_bin, 0, self.num_pos_x_states - 1)
-        pos_y_bin = np.clip(pos_y_bin, 0, self.num_pos_y_states - 1)
-        rel_x_bin = np.clip(rel_x_bin, 0, self.num_rel_x_states - 1)
-        rel_y_bin = np.clip(rel_y_bin, 0, self.num_rel_y_states - 1)
-        
+        pos_x_bin = int(np.clip(pos_x_bin, 0, self.num_pos_x_states - 1))
+        pos_y_bin = int(np.clip(pos_y_bin, 0, self.num_pos_y_states - 1))
+        rel_x_bin = int(np.clip(rel_x_bin, 0, self.num_rel_x_states - 1))
+        rel_y_bin = int(np.clip(rel_y_bin, 0, self.num_rel_y_states - 1))
+
         return (pos_x_bin, pos_y_bin, rel_x_bin, rel_y_bin)
     
     def get_action_epsilon_greedy(self, state_bin):

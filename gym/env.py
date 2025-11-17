@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-from utils import round_to_res, round_to_grid
+from utils import round_to_res, round_to_grid, pos_to_grid, grid_to_pos
 
 class Env():
     def __init__(self):
@@ -44,6 +44,14 @@ class DeepRLGridEnv(Env):
         self.obstacles = obstacles
         self.wrap_arena = wrap_arena
         self.randomize_start, self.randomize_goal = randomize_start, randomize_goal
+
+        # Integer grid bounds for internal representation
+        self.grid_min = np.array(
+            [int(np.floor(self.bounds[0][0]/self.res)), 
+             int(np.floor(self.bounds[1][0]/self.res))], dtype=int)
+        self.grid_max = np.array([
+            int(np.floor(self.bounds[0][1]/self.res)), 
+            int(np.floor(self.bounds[1][1]/self.res))], dtype=int)
         self.init_start_goal(init=True)
 
         # Reward value
@@ -51,17 +59,17 @@ class DeepRLGridEnv(Env):
         self.punishment = -1.0
         self.use_shaped = use_shaped
         self.shaped_mult = 0.1
-        self.time_penalty = -0.01
+        self.time_penalty = -0.0
 
         # Action and state space
         self.state_dim = 2
         self.action_space = np.array([0, 1, 2, 3])
         self.action_dim = len(self.action_space)
         self.action_map = {
-            0: np.array([self.res, 0]),
-            1: np.array([0, -self.res]),
-            2: np.array([-self.res, 0]),
-            3: np.array([0, self.res])
+            0: np.array([1, 0], dtype=int),
+            1: np.array([0, -1], dtype=int),
+            2: np.array([-1, 0], dtype=int),
+            3: np.array([0, 1], dtype=int)
         }
 
         # Visualization
@@ -87,9 +95,10 @@ class DeepRLGridEnv(Env):
             # Plot obstacles
             if self.obstacles is not None:
                 for o in self.obstacles:
-                    # Plot obstacles as rectanagles
+                    world_o = grid_to_pos(o, self.res)  # Convert back to float
+                    # Plot obstacles as rectangles
                     rect = patches.Rectangle(
-                        (o[0], o[1]), self.res, self.res,
+                        (world_o[0], world_o[1]), self.res, self.res,
                         facecolor='gray', edgecolor='black'
                     )
                     self.ax.add_patch(rect)
@@ -116,19 +125,19 @@ class DeepRLGridEnv(Env):
 
             # Plot start and goal
             self.start_patch = patches.Rectangle(
-                (self.start[0], self.start[1]), self.res, self.res,
+                (grid_to_pos(self.start, self.res)[0], grid_to_pos(self.start, self.res)[1]), self.res, self.res,
                 facecolor='blue', edgecolor='black'
             )
             self.ax.add_patch(self.start_patch)
             self.goal_patch = patches.Rectangle(
-                (self.goal[0], self.goal[1]), self.res, self.res,
+                (grid_to_pos(self.goal, self.res)[0], grid_to_pos(self.goal, self.res)[1]), self.res, self.res,
                 facecolor='green', edgecolor='black'
             )
             self.ax.add_patch(self.goal_patch)
 
             # Draw robot
             self.robot_patch = patches.Rectangle(
-                self.pos, self.res, self.res,
+                (grid_to_pos(self.pos, self.res)[0], grid_to_pos(self.pos, self.res)[1]), self.res, self.res,
                 facecolor='red', edgecolor='black'
             )
             self.ax.add_patch(self.robot_patch)
@@ -143,9 +152,10 @@ class DeepRLGridEnv(Env):
         """
         initialized = np.zeros((3,))
         while not initialized.all():
-            if init or self.randomize_start: self.start = round_to_grid(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
-            if init or self.randomize_goal: self.goal = round_to_grid(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
-            self.pos = round_to_res(self.start.copy(), self.res)
+            # Randomize start and goal
+            if init or self.randomize_start: self.start = np.array(round_to_grid(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res), dtype=int)
+            if init or self.randomize_goal: self.goal = np.array(round_to_grid(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res), dtype=int)
+            self.pos = self.start.copy()
             if self.obstacles is not None:
                 initialized[0] = tuple(self.start) not in self.obstacles    # Don't start on obstacle
                 initialized[1] = tuple(self.goal) not in self.obstacles     # Don't end on obstacle
@@ -164,7 +174,7 @@ class DeepRLGridEnv(Env):
         """ 
         Determine whether a given position is out of bounds
         """
-        if self.bounds[0][0] <= pos[0] < self.bounds[0][1] and self.bounds[1][0] <= pos[1] < self.bounds[1][1]:
+        if self.grid_min[0] <= pos[0] < self.grid_max[0] and self.grid_min[1] <= pos[1] < self.grid_max[1]:
             return False
         else:
             return True
@@ -178,13 +188,13 @@ class DeepRLGridEnv(Env):
             self.__init_render__()
         else:
             # Update start and goal positions
-            self.start_patch.set_xy(self.start)
-            self.goal_patch.set_xy(self.goal)
-            self.robot_patch.set_xy(self.pos)
+            self.start_patch.set_xy((grid_to_pos(self.start, self.res)[0], grid_to_pos(self.start, self.res)[1]))
+            self.goal_patch.set_xy((grid_to_pos(self.goal, self.res)[0], grid_to_pos(self.goal, self.res)[1]))
+            self.robot_patch.set_xy((grid_to_pos(self.pos, self.res)[0], grid_to_pos(self.pos, self.res)[1]))
 
         # Add batch dimension to observation
-        self.prev_dist = np.linalg.norm(self.pos - self.goal)
-        obs = np.array(self.pos - self.goal)
+        self.prev_dist = np.linalg.norm((self.pos - self.goal) * self.res)  # Mult by res to go back to float units
+        obs = np.array(self.pos - self.goal).astype(int)
         return obs[np.newaxis, ...], {}
     
     def wrap(self, pos):
@@ -193,12 +203,12 @@ class DeepRLGridEnv(Env):
         """
         # Wrap x
         new_pos = pos.copy()
-        if pos[0] < self.bounds[0][0]: new_pos[0] = self.bounds[0][1] - 1
-        elif pos[0] >= self.bounds[0][1]: new_pos[0] = self.bounds[0][0]
+        if pos[0] < self.grid_min[0]: new_pos[0] = self.grid_max[0] - 1
+        elif pos[0] >= self.grid_max[0]: new_pos[0] = self.grid_min[0]
 
         # Wrap y
-        if pos[1] < self.bounds[1][0]: new_pos[1] = self.bounds[1][1] - 1
-        elif pos[1] >= self.bounds[1][1]: new_pos[1] = self.bounds[1][0]
+        if pos[1] < self.grid_min[1]: new_pos[1] = self.grid_max[1] - 1
+        elif pos[1] >= self.grid_max[1]: new_pos[1] = self.grid_min[1]
 
         return new_pos
 
@@ -211,13 +221,13 @@ class DeepRLGridEnv(Env):
         next_state = self.pos + action
 
         # Wrap around arena edges
-        if self.wrap_arena: next_state = round_to_res(self.wrap(next_state), self.res)
-        
+        if self.wrap_arena: next_state = self.wrap(next_state)
+
         # Initialize done flags
         terminated, truncated = False, False
 
         # Distance to goal from new state
-        dist = np.linalg.norm(next_state - self.goal)
+        dist = np.linalg.norm((next_state - self.goal) * self.res)  
 
         # Check for rewards or punishments
         reward = self.time_penalty
@@ -229,25 +239,26 @@ class DeepRLGridEnv(Env):
         elif (next_state == self.goal).all():
             # Found goal
             reward += self.reward
-            self.pos = round_to_res(next_state, self.res)
+            self.pos = next_state.copy()
             terminated = True
         elif dist < self.prev_dist:
             # Moved towards goal
-            reward += self.shaped_mult*self.reward
-            self.pos = round_to_res(next_state, self.res)
-        elif dist >= self.prev_dist:
-            # Moved away from goal
-            reward -= 2.0*self.shaped_mult*self.reward
-            self.pos = round_to_res(next_state, self.res)
+            reward += self.shaped_mult * self.reward
+            self.pos = next_state.copy()
+        else:
+            # Moved away or equal
+            reward -= 2.0 * self.shaped_mult * self.reward
+            self.pos = next_state.copy()
 
-        self.prev_dist = np.linalg.norm(self.pos - self.goal)
-        obs = np.array(self.pos - self.goal)
+        # Update previous distance and return obs as rel. pos
+        self.prev_dist = np.linalg.norm((self.pos - self.goal) * self.res)
+        obs = np.array(self.pos - self.goal).astype(int)
         return obs[np.newaxis, ...], reward, terminated, truncated, {}
 
     def render(self):
         if self.render_mode == 'human':
             # Update position and draw robot
-            self.robot_patch.set_xy(self.pos)
+            self.robot_patch.set_xy((grid_to_pos(self.pos, self.res)[0], grid_to_pos(self.pos, self.res)[1]))
             self.fig.canvas.draw()
             self.fig.canvas.flush_events()
         elif self.render_mode == 'no_vis':
@@ -277,6 +288,13 @@ class QLGridEnv(Env):
         self.res = res
         self.obstacles = obstacles
         self.randomize_start, self.randomize_goal = randomize_start, randomize_goal
+        # Integer grid bounds for internal representation
+        self.grid_min = np.array([
+            int(np.floor(self.bounds[0][0]/self.res)), 
+            int(np.floor(self.bounds[1][0]/self.res))], dtype=int)
+        self.grid_max = np.array([
+            int(np.floor(self.bounds[0][1]/self.res)), 
+            int(np.floor(self.bounds[1][1]/self.res))], dtype=int)
         self.init_start_goal(init=True)
 
         # Reward value
@@ -289,10 +307,10 @@ class QLGridEnv(Env):
         self.action_space = np.array([0, 1, 2, 3])
         self.action_dim = len(self.action_space)
         self.action_map = {
-            0: np.array([self.res, 0]),
-            1: np.array([0, -self.res]),
-            2: np.array([-self.res, 0]),
-            3: np.array([0, self.res])
+            0: np.array([1, 0], dtype=int),
+            1: np.array([0, -1], dtype=int),
+            2: np.array([-1, 0], dtype=int),
+            3: np.array([0, 1], dtype=int)
         }
 
         # Visualization
@@ -318,9 +336,10 @@ class QLGridEnv(Env):
             # Plot obstacles
             if self.obstacles is not None:
                 for o in self.obstacles:
-                    # Plot obstacles as rectanagles
+                    # Plot obstacles
+                    world_o = grid_to_pos(o, self.res)  # Convert back to float
                     rect = patches.Rectangle(
-                        (o[0], o[1]), self.res, self.res,
+                        (world_o[0], world_o[1]), self.res, self.res,
                         facecolor='gray', edgecolor='black'
                     )
                     self.ax.add_patch(rect)
@@ -346,20 +365,23 @@ class QLGridEnv(Env):
             self.ax.set_ylim(self.bounds[1])
 
             # Plot start and goal
+            start_world = grid_to_pos(self.start, self.res)
             self.start_patch = patches.Rectangle(
-                (self.start[0], self.start[1]), self.res, self.res,
+                (start_world[0], start_world[1]), self.res, self.res,
                 facecolor='blue', edgecolor='black'
             )
             self.ax.add_patch(self.start_patch)
+            goal_world = grid_to_pos(self.goal, self.res)
             self.goal_patch = patches.Rectangle(
-                (self.goal[0], self.goal[1]), self.res, self.res,
+                (goal_world[0], goal_world[1]), self.res, self.res,
                 facecolor='green', edgecolor='black'
             )
             self.ax.add_patch(self.goal_patch)
 
             # Draw robot
+            robot_world = grid_to_pos(self.pos, self.res)
             self.robot_patch = patches.Rectangle(
-                self.pos, self.res, self.res,
+                (robot_world[0], robot_world[1]), self.res, self.res,
                 facecolor='red', edgecolor='black'
             )
             self.ax.add_patch(self.robot_patch)
@@ -372,9 +394,10 @@ class QLGridEnv(Env):
         # Initialize starting and goal positions
         initialized = np.zeros((3,))
         while not initialized.all():
-            if init or self.randomize_start: self.start = round_to_grid(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
-            if init or self.randomize_goal: self.goal = round_to_grid(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res)
-            self.pos = round_to_res(self.start.copy(), self.res)
+            # Randomize start and goal
+            if init or self.randomize_start: self.start = np.array(round_to_grid(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res), dtype=int)
+            if init or self.randomize_goal: self.goal = np.array(round_to_grid(np.random.uniform(self.bounds[:, 0], self.bounds[:, 1]), self.res), dtype=int)
+            self.pos = self.start.copy()
             if self.obstacles is not None:
                 initialized[0] = tuple(self.start) not in self.obstacles    # Don't start on obstacle
                 initialized[1] = tuple(self.goal) not in self.obstacles     # Don't end on obstacle
@@ -393,7 +416,7 @@ class QLGridEnv(Env):
         """
         Determine whether a given position is out of bounds
         """
-        if self.bounds[0][0] <= pos[0] < self.bounds[0][1] and self.bounds[1][0] <= pos[1] < self.bounds[1][1]:
+        if self.grid_min[0] <= pos[0] < self.grid_max[0] and self.grid_min[1] <= pos[1] < self.grid_max[1]:
             return False
         else:
             return True
@@ -408,14 +431,14 @@ class QLGridEnv(Env):
             self.__init_render__()
         else:
             # Update start and goal positions
-            self.start_patch.set_xy(self.start)
-            self.goal_patch.set_xy(self.goal)
-            self.robot_patch.set_xy(self.pos)
+            self.start_patch.set_xy((grid_to_pos(self.start, self.res)[0], grid_to_pos(self.start, self.res)[1]))
+            self.goal_patch.set_xy((grid_to_pos(self.goal, self.res)[0], grid_to_pos(self.goal, self.res)[1]))
+            self.robot_patch.set_xy((grid_to_pos(self.pos, self.res)[0], grid_to_pos(self.pos, self.res)[1]))
 
-        # Add batch dimension to observation
+        # Return current pos and rel pos as observation
         rel_pos = np.array(self.goal - self.pos)
-        self.prev_dist = np.linalg.norm(rel_pos)
-        obs = np.concatenate([self.pos, rel_pos])
+        self.prev_dist = np.linalg.norm(rel_pos) * self.res  # Mult by res to go back to float units
+        obs = np.concatenate([self.pos, rel_pos]).astype(int)
         return obs, {}
 
     def step(self, action_index):
@@ -424,13 +447,13 @@ class QLGridEnv(Env):
         """
         # Get physical action corresponding to action index
         action = self.action_map[action_index]
-        next_state = round_to_res(self.pos + action, self.res)
-        
+        next_state = self.pos + action
+
         # Initialize done flags
         terminated, truncated = False, False
 
         # Distance to goal from new state
-        dist = np.linalg.norm(next_state - self.goal)
+        dist = np.linalg.norm((next_state - self.goal) * self.res)
 
         # Check for rewards or punishments
         reward = 0.0
@@ -442,26 +465,27 @@ class QLGridEnv(Env):
         elif (next_state == self.goal).all():
             # Found goal
             reward += self.reward
-            self.pos = round_to_res(next_state, self.res)
+            self.pos = next_state.copy()
             terminated = True
         elif dist < self.prev_dist:
             # Moved towards goal
-            reward += self.shaped_mult*self.reward
-            self.pos = round_to_res(next_state, self.res)
-        elif dist >= self.prev_dist:
-            # Moved away from goal
-            reward -= 2.0*self.shaped_mult*self.reward
-            self.pos = round_to_res(next_state, self.res)
+            reward += self.shaped_mult * self.reward
+            self.pos = next_state.copy()
+        else:
+            # Moved away or equal
+            reward -= 2.0 * self.shaped_mult * self.reward
+            self.pos = next_state.copy()
 
+        # Observation is current pos and rel pos to goal
         rel_pos = np.array(self.goal - self.pos)
-        self.prev_dist = np.linalg.norm(rel_pos)
-        obs = np.concatenate([self.pos, rel_pos])
+        self.prev_dist = np.linalg.norm(rel_pos) * self.res
+        obs = np.concatenate([self.pos, rel_pos]).astype(int)
         return obs, reward, terminated, truncated, {}
 
     def render(self):
         if self.render_mode == 'human':
             # Update position and draw robot
-            self.robot_patch.set_xy(self.pos)
+            self.robot_patch.set_xy((grid_to_pos(self.pos, self.res)[0], grid_to_pos(self.pos, self.res)[1]))
             self.fig.canvas.draw()
             self.fig.canvas.flush_events()
         elif self.render_mode == 'no_vis':

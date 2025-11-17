@@ -91,7 +91,7 @@ def main():
                     env, 
                     critic_arch, 
                     actor_arch, 
-                    alpha_actor=1e-5, 
+                    alpha_actor=1e-3, 
                     alpha_critic=1e-4, 
                     gamma=0.99,
                     exp_prob=0.1,

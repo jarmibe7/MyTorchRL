@@ -70,30 +70,33 @@ def pos_to_grid(pos, res):
     """
     Convert from orig units to internal integer representation
     """
-    return tuple(np.floor(np.array(pos) / res).astype(int))
+    # Floor maps world coords to grid indices
+    arr = np.array(pos)
+    return tuple(np.floor(arr / res).astype(int))
 
 def grid_to_pos(grid, res):
     """
     Convert from integer rep back to orig units
     """
-    return np.round(np.array(grid)*res, 1)
+    return np.array(grid, dtype=float) * res
 
 def round_to_grid(n, res):
     """
     Given a number or np.ndarray of numbers, round to a given grid resolution.
     """
-    if isinstance(n, tuple): n_arr = np.array(n)
-    else: n_arr = n
-    return np.round(np.floor(n_arr / res)*res, 1)   # TODO: Better way of eliminating floating point
+    # Return integer grid indices
+    if isinstance(n, tuple) or isinstance(n, list): n_arr = np.array(n)
+    else: n_arr = np.array(n)
+    return np.floor(n_arr / res).astype(int)
 
 def round_to_res(n, res):
     """
     Given a number or np.ndarray of numbers, round to a given resolution.
     """
-    if isinstance(n, tuple): n_arr = np.array(n)
-    else: n_arr = n
+    # Convert numeric input to the nearest grid-aligned world coordinate
+    if isinstance(n, tuple) or isinstance(n, list): n_arr = np.array(n)
+    else: n_arr = np.array(n)
     return np.round(n_arr / res) * res
-    # return np.round(np.floor(n_arr / res)*res, 1)   # TODO: Better way of eliminating floating point
 
 def inflate_obstacles(bounds, res, obstacles, inflate):
     """
@@ -125,6 +128,8 @@ def get_obstacles(bounds, res, inflate=0):
     landmarks_truth = pd.read_csv(landmarks_truth_data_path, sep=r"\s+", comment="#", header=None, names=["subject", "x", "y", "x_sig", "y_sig"])
     landmarks = landmarks_truth.to_numpy()[:, 1:3]
      
-    obstacles = inflate_obstacles(bounds, res, landmarks, inflate=inflate)
+    # Convert landmarks to integer grid tuples for internal representation
+    landmarks_grid = [pos_to_grid(l, res) for l in landmarks]
+    obstacles = inflate_obstacles(bounds, res, landmarks_grid, inflate=inflate)
 
     return obstacles

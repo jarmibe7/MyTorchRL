@@ -115,6 +115,7 @@ class A2C():
         alpha_critic: Critic learning rate
         gamma: Discount factor
         exp_prob: Probability of random exploration
+        ent_coef: Entropy loss term coefficient
         rollout_limit: Number of episodes to collect in each rollout (batch_size = rollout_limit*step_limit)
         episode_limit: Limit number of episodes for training
         step_limit: Limit number of timesteps per episode
@@ -128,6 +129,7 @@ class A2C():
                  alpha_critic, 
                  gamma,
                  exp_prob, 
+                 ent_coef,
                  rollout_limit,
                  episode_limit, 
                  step_limit, 
@@ -142,6 +144,7 @@ class A2C():
         # Algorithm params
         self.gamma = gamma
         self.exp_prob = exp_prob
+        self.ent_coef = ent_coef
         self.rollout_limit = rollout_limit
         self.num_rollouts = 0
         self.episode_limit = episode_limit
@@ -230,7 +233,7 @@ class A2C():
         """
         Save live training plot
         """
-        filepath = os.path.join(PLOT_PATH, 'a2c_0.png')
+        filepath = os.path.join(PLOT_PATH, f'a2c_{time.time()}.png')
         self.fig.savefig(filepath)
 
     def display_episode(self):
@@ -244,6 +247,7 @@ class A2C():
         max_advantage = np.max(np.abs(np.array(self.logger["advantage"]))) if len(self.logger["advantage"]) > 0 else 0
 
         # Display episode statistics
+        # if self.logger['episode'] % 5000 == 0:
         print('\n----------------------------')
         print(f'Episode {self.logger['episode']}:')
         print(f'Avg. Critic Loss: {avg_critic_loss}')
@@ -342,8 +346,12 @@ class A2C():
 
             # Compute actor loss and update
             advantage = target - value
-            advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + 1e-8) # Normalize the advantage
+            # advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + 1e-8) # Normalize the advantage
             actor_loss = self.actor.criterion(actions, action_probs, advantage)
+            
+            entropy = -np.sum(action_probs * np.log(action_probs + 1e-8), axis=1)
+            actor_loss = actor_loss - self.ent_coef*np.mean(entropy)
+
             actor_gradients = self.actor.backward()
             actor_converged = self.actor.optimize()
 
